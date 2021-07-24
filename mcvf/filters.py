@@ -67,8 +67,8 @@ class BBMEDrawerFilter(Filter):
 
             for vector in mf:
                 th = max(1, 10*vector.magnitude//max_mag)
-                tl = max(0.1, 0.5*vector.magnitude//max_mag)
-                len = vector.magnitude*50/max_mag
+                tl = max(0.2, 0.5*vector.magnitude//max_mag)
+                len = vector.magnitude*10/max_mag
                 tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
                 ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
 

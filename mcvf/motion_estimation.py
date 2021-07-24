@@ -34,7 +34,7 @@ class BBME:
             f_prev = f
 
     def _calculate_frame_mf(self, f_ref: np.ndarray, f_target: np.ndarray) -> List[MotionVector]:
-        w, h = f_ref.shape
+        h, w = f_ref.shape
         bw, bh = w//self.block_size, h//self.block_size
         MF: List[MotionVector] = []
 
@@ -55,21 +55,21 @@ class BBME:
         bs, hbs = self.block_size, self.block_size//2
         min_x, min_y, min_val = ws//2, ws//2, DFDs[ws//2, ws//2]
 
-        for x in range(DFDs.shape[0]):
-            for y in range(DFDs.shape[1]):
-                if DFDs[x, y] != -1 and DFDs[x, y] < min_val:
-                    min_val = DFDs[x, y]
+        for x in range(DFDs.shape[1]):
+            for y in range(DFDs.shape[0]):
+                if DFDs[y, x] != -1 and DFDs[y, x] < min_val:
+                    min_val = DFDs[y, x]
                     min_x = x
                     min_y = y
 
         return MotionVector(
             block_x*bs+hbs, block_y*bs+hbs,
             (block_x-ws//2+min_x)*bs+hbs, (block_y-ws//2+min_y)*bs+hbs,
-            DFDs[min_x, min_y]
+            DFDs[min_y, min_x]
         )
 
     def _calculate_blocks_DFD(self, f_ref: np.ndarray, f_target: np.ndarray, block_x: int, block_y: int, ws: int) -> np.ndarray:
-        w, h = f_ref.shape
+        h, w = f_ref.shape
         bs, bw, bh = self.block_size, w//self.block_size, h//self.block_size
         blocks = np.ndarray(shape=(ws, ws), dtype=int)
 
@@ -78,19 +78,19 @@ class BBME:
 
                 wx = block_x - ws + bx
                 wy = block_y - ws + by
-                blocks[bx, by] = -1
+                blocks[by, bx] = -1
 
-                if wy < 0 or wy >= bh:
-                    continue
                 if wx < 0 or wx >= bw:
                     continue
+                if wy < 0 or wy >= bh:
+                    continue
 
-                blocks[bx, by] = 0
+                blocks[by, bx] = 0
 
                 for px_x in range(wx*bs, wx*bs+bs):
                     for px_y in range(wy*bs, wy*bs+bs):
-                        blocks[bx, by] += abs(
-                            int(f_ref[px_x, px_y]) - int(f_target[px_x, px_y])
+                        blocks[by, bx] += abs(
+                            int(f_ref[px_y, px_x]) - int(f_target[px_y, px_x])
                         )
 
         return blocks

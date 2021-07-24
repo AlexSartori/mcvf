@@ -24,14 +24,14 @@ class Video:
             if not ok:
                 break
             self.frames.append(frame)
-
+        self.frames = self.frames
         cap.release()
 
     def save_to_file(self, fname: str, fps: int, width: int, height: int):
         out = cv2.VideoWriter(
             fname, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height)
         )
-        [out.write(frame) for frame in self.frames]
+        [out.write(frame) for frame in list(self.frames)]
         out.release()
 
     def play(self):
@@ -42,4 +42,4 @@ class Video:
         cv2.destroyWindow("Frame")
 
     def apply_filter(self, filter: filters.Filter):
-        self.frames = filter.filter_frames(self.frames)
+        self.frames = list(filter.filter_frames(self.frames))
