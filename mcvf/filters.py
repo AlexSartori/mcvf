@@ -1,5 +1,9 @@
+import cv2
 from typing import List
 import numpy as np
+from multiprocessing import Pool
+
+from mcvf import motion_estimation
 
 
 class Filter:
@@ -22,24 +26,59 @@ class GaussianFilter(Filter):
 
     def filter_frames(self, frames: List[np.ndarray]) -> List[np.ndarray]:
         if len(frames) == 0:
-            return
+            return []
         if frames[0].ndim != 3:
             raise ValueError("Frame arrays don't have 3 dimensions")
+        with Pool() as p:
+            return p.map(self._filter_frame, frames)
 
-        for idx, frame in enumerate(frames):
-            print("Frame:", idx+1)
-            width, height, channels = frame.shape
-            new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
-            kw, kh = self.kernel.shape[0]//2, self.kernel.shape[1]//2
+    def _filter_frame(self, frame):
+        new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
+        return cv2.GaussianBlur(frame, (5, 5), 1)
 
-            for x in range(kw, width-kw):
-                for y in range(kh, height-kh):
-                    pixel = [0, 0, 0]
+        # print("Frame:", idx+1)
+        width, height, channels = frame.shape
+        new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
+        kw, kh = self.kernel.shape[0]//2, self.kernel.shape[1]//2
 
-                    for kern_x in range(-kw, kw):
-                        for kern_y in range(-kh, kh):
-                            pixel += frame[x+kern_x, y+kern_y]*self.kernel[kh+kern_y][kw+kern_x]
+        for x in range(kw, width-kw):
+            for y in range(kh, height-kh):
+                pixel = [0, 0, 0]
 
-                    new_frame[x, y] = pixel
+                for kern_x in range(-kw, kw):
+                    for kern_y in range(-kh, kh):
+                        pixel += frame[x+kern_x, y+kern_y]*self.kernel[kh+kern_y][kw+kern_x]
 
-            yield new_frame
+                new_frame[x, y] = pixel
+
+        return new_frame
+
+
+class BBMEDrawerFilter(Filter):
+    def __init__(self):
+        pass
+
+    def filter_frames(self, frames: List[np.ndarray]) -> List[np.ndarray]:
+        BBME = motion_estimation.BBME(frames)
+        max_mag = 255*16*16
+        yield frames[0]
+        for frame, mf in zip(frames[1:], BBME.calculate_motion_field()):
+            new_f = frame
+
+            for vector in mf:
+                th = max(1, 10*vector.magnitude//max_mag)
+                tl = max(0.1, 0.5*vector.magnitude//max_mag)
+                len = vector.magnitude*50/max_mag
+                tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
+                ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
+
+                new_f = cv2.arrowedLine(
+                    new_f,
+                    (vector.origin_x, vector.origin_y),
+                    (tx, ty),
+                    (0, 0, 200),
+                    thickness=th,
+                    tipLength=tl
+                )
+
+            yield new_f

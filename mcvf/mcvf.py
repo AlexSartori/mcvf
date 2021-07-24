@@ -37,7 +37,7 @@ class Video:
     def play(self):
         for frame in self.frames:
             cv2.imshow("Frame", frame)
-            if cv2.waitKey(25) & 0xFF == ord('q'):
+            if cv2.waitKey(100) & 0xFF == ord('q'):
                 break
         cv2.destroyWindow("Frame")
 
