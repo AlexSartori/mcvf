@@ -31,7 +31,8 @@ class Video:
         out = cv2.VideoWriter(
             fname, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height)
         )
-        [out.write(frame) for frame in list(self.frames)]
+        for frame in list(self.frames):
+            out.write(frame)
         out.release()
 
     def play(self):

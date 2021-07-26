@@ -27,13 +27,30 @@ class BBME:
             raise ValueError("Algorithm not implemented: %s" % algorithm)
 
     def calculate_motion_field(self):
-        f_prev = None
-        for f in self.frames:
-            if f_prev is not None:
-                yield self._calculate_frame_mf(f_prev, f)
-            f_prev = f
+        res = []
 
-    def _calculate_frame_mf(self, f_ref: np.ndarray, f_target: np.ndarray) -> List[MotionVector]:
+        with Pool() as p:
+            res = [] + p.map(
+                self._calculate_frame_mf,
+                [(self.frames[i-1], self.frames[i]) for i in range(1, len(self.frames))]
+            )
+
+        return res
+
+        # f_prev = None
+        # for i, f in enumerate(self.frames):
+        #     print("%.2f%% (%d/%d)" % (100*i/len(self.frames), i, len(self.frames)), end='\r')
+        #
+        #     if f_prev is None:
+        #         yield []
+        #     else:
+        #         yield self._calculate_frame_mf((f_prev, f))
+        #     f_prev = f
+        # print()
+
+    # def _calculate_frame_mf(self, f_ref: np.ndarray, f_target: np.ndarray) -> List[MotionVector]:
+    def _calculate_frame_mf(self, args) -> List[MotionVector]:
+        f_ref, f_target = args
         h, w = f_ref.shape
         bw, bh = w//self.block_size, h//self.block_size
         MF: List[MotionVector] = []
@@ -50,7 +67,7 @@ class BBME:
         return MF
 
     def _calculate_block_vector(self, f_ref: np.ndarray, f_target: np.ndarray, block_x: int, block_y: int) -> MotionVector:
-        ws = 3
+        ws = 5
         DFDs: np.ndarray = self._calculate_blocks_DFD(f_ref, f_target, block_x, block_y, ws)
         bs, hbs = self.block_size, self.block_size//2
         min_x, min_y, min_val = ws//2, ws//2, DFDs[ws//2, ws//2]
@@ -90,7 +107,7 @@ class BBME:
                 for px_x in range(wx*bs, wx*bs+bs):
                     for px_y in range(wy*bs, wy*bs+bs):
                         blocks[by, bx] += abs(
-                            int(f_ref[px_y, px_x]) - int(f_target[px_y, px_x])
+                            int(f_target[px_y, px_x]) - int(f_ref[px_y, px_x])
                         )
 
         return blocks

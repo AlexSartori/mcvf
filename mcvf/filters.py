@@ -59,16 +59,13 @@ class BBMEDrawerFilter(Filter):
         pass
 
     def filter_frames(self, frames: List[np.ndarray]) -> List[np.ndarray]:
-        BBME = motion_estimation.BBME(frames)
-        max_mag = 255*16*16
-        yield frames[0]
-        for frame, mf in zip(frames[1:], BBME.calculate_motion_field()):
+        BBME = motion_estimation.BBME(frames, block_size=10)
+        max_mag = 255*BBME.block_size*BBME.block_size/10
+        for frame, mf in zip(frames, BBME.calculate_motion_field()):
             new_f = frame
 
             for vector in mf:
-                th = max(1, 10*vector.magnitude//max_mag)
-                tl = max(0.2, 0.5*vector.magnitude//max_mag)
-                len = vector.magnitude*10/max_mag
+                len = vector.magnitude/max_mag
                 tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
                 ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
 
@@ -77,8 +74,8 @@ class BBMEDrawerFilter(Filter):
                     (vector.origin_x, vector.origin_y),
                     (tx, ty),
                     (0, 0, 200),
-                    thickness=th,
-                    tipLength=tl
+                    thickness=1,
+                    tipLength=0.3
                 )
 
             yield new_f
