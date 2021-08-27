@@ -49,20 +49,18 @@ class BBME:
         # print()
 
     # def _calculate_frame_mf(self, f_ref: np.ndarray, f_target: np.ndarray) -> List[MotionVector]:
-    def _calculate_frame_mf(self, args) -> List[MotionVector]:
+    def _calculate_frame_mf(self, args) -> np.ndarray:
         f_ref, f_target = args
         h, w = f_ref.shape
         bw, bh = w//self.block_size, h//self.block_size
-        MF: List[MotionVector] = []
+        MF: np.ndarray = np.ndarray(shape=(bw, bh), dtype=MotionVector)
 
         # with Pool() as p:
         #     MF = p.map(self._calculate_block_vector, [(f_ref, f_target, x, y) for x in range(bw) for y in range(bh)])
 
         for bx in range(bw):
             for by in range(bh):
-                MF.append(
-                    self._calculate_block_vector(f_ref, f_target, bx, by)
-                )
+                MF[bx, by] = self._calculate_block_vector(f_ref, f_target, bx, by)
 
         return MF
 

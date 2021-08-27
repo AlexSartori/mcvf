@@ -64,18 +64,19 @@ class BBMEDrawerFilter(Filter):
         for frame, mf in zip(frames, BBME.calculate_motion_field()):
             new_f = frame
 
-            for vector in mf:
-                len = vector.magnitude*2/max_mag
-                tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
-                ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
+            for row in mf:
+                for vector in row:
+                    len = vector.magnitude*2/max_mag
+                    tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
+                    ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
 
-                new_f = cv2.arrowedLine(
-                    new_f,
-                    (vector.origin_x, vector.origin_y),
-                    (tx, ty),
-                    (0, 0, 200),
-                    thickness=1,
-                    tipLength=0.3
-                )
+                    new_f = cv2.arrowedLine(
+                        new_f,
+                        (vector.origin_x, vector.origin_y),
+                        (tx, ty),
+                        (0, 0, 200),
+                        thickness=1,
+                        tipLength=0.3
+                    )
 
-            yield new_f
+                yield new_f

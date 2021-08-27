@@ -46,4 +46,4 @@ class Video:
         cv2.destroyWindow("Frame")
 
     def apply_filter(self, filter: filters.Filter):
-        self.frames = list(filter.filter_frames(self.frames))
+        self.frames = list(filter.filter_frames(self.frames[:100]))
