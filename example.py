@@ -12,4 +12,4 @@ print("Playing...")
 v.play()
 
 print("Saving...")
-v.save_to_file("out.mp4", 24, 320, 230)
+v.save_to_file("out.mp4", 24)

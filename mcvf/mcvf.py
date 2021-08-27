@@ -24,15 +24,18 @@ class Video:
             if not ok:
                 break
             self.frames.append(frame)
-        self.frames = self.frames
+
         cap.release()
 
-    def save_to_file(self, fname: str, fps: int, width: int, height: int):
+    def save_to_file(self, fname: str, fps: int):
+        W, H = 640, 460
         out = cv2.VideoWriter(
-            fname, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height)
+            fname, cv2.VideoWriter_fourcc(*'mp4v'), fps, (W, H)
         )
+
         for frame in list(self.frames):
-            out.write(frame)
+            out.write(cv2.resize(frame, (W, H)))
+
         out.release()
 
     def play(self):
