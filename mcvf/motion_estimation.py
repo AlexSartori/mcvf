@@ -30,7 +30,7 @@ class BBME:
         res = []
 
         with Pool() as p:
-            res = [] + p.map(
+            res = p.map(
                 self._calculate_frame_mf,
                 [(self.frames[i-1], self.frames[i]) for i in range(1, len(self.frames))]
             )
@@ -52,15 +52,15 @@ class BBME:
     def _calculate_frame_mf(self, args) -> np.ndarray:
         f_ref, f_target = args
         h, w = f_ref.shape
-        bw, bh = w//self.block_size, h//self.block_size
-        MF: np.ndarray = np.ndarray(shape=(bw, bh), dtype=MotionVector)
+        bh, bw = h//self.block_size, w//self.block_size
+        MF: np.ndarray = np.ndarray(shape=(bh, bw), dtype=MotionVector)
 
         # with Pool() as p:
         #     MF = p.map(self._calculate_block_vector, [(f_ref, f_target, x, y) for x in range(bw) for y in range(bh)])
 
         for bx in range(bw):
             for by in range(bh):
-                MF[bx, by] = self._calculate_block_vector(f_ref, f_target, bx, by)
+                MF[by, bx] = self._calculate_block_vector(f_ref, f_target, bx, by)
 
         return MF
 
@@ -91,8 +91,8 @@ class BBME:
         for bx in range(ws):
             for by in range(ws):
 
-                wx = block_x - ws + bx
-                wy = block_y - ws + by
+                wx = block_x - ws//2 + bx
+                wy = block_y - ws//2 + by
                 blocks[by, bx] = -1
 
                 if wx < 0 or wx >= bw:
@@ -105,7 +105,7 @@ class BBME:
                 for px_x in range(wx*bs, wx*bs+bs):
                     for px_y in range(wy*bs, wy*bs+bs):
                         blocks[by, bx] += abs(
-                            int(f_target[px_y, px_x]) - int(f_ref[px_y, px_x])
+                            int(f_ref[px_y, px_x]) - int(f_target[px_y, px_x])
                         )
 
         return blocks

@@ -28,13 +28,16 @@ class Video:
         cap.release()
 
     def save_to_file(self, fname: str, fps: int):
-        W, H = 640, 460
+        # W, H = 640, 460
+        H, W, _ = self.frames[0].shape
+
         out = cv2.VideoWriter(
             fname, cv2.VideoWriter_fourcc(*'mp4v'), fps, (W, H)
         )
 
         for frame in list(self.frames):
             out.write(cv2.resize(frame, (W, H)))
+            out.write(frame)
 
         out.release()
 
@@ -46,4 +49,4 @@ class Video:
         cv2.destroyWindow("Frame")
 
     def apply_filter(self, filter: filters.Filter):
-        self.frames = list(filter.filter_frames(self.frames[:100]))
+        self.frames = list(filter.filter_frames(self.frames))

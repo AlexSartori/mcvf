@@ -2,11 +2,11 @@ from mcvf import mcvf, filters
 
 
 print("Loading sample video...")
-v = mcvf.Video('shrekophone-1.mp4')
+v = mcvf.Video('test-video-2.mp4')
 
 print("Filtering...")
-# v.apply_filter(filters.GaussianFilter())
-v.apply_filter(filters.BBMEDrawerFilter())
+v.apply_filter(filters.MCGaussianFilter())
+# v.apply_filter(filters.BBMEDrawerFilter())
 
 print("Playing...")
 v.play()
