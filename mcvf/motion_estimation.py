@@ -1,11 +1,46 @@
+'''
+Motion estimation utilities
+'''
+
 import cv2
-from typing import List
 import numpy as np
 from multiprocessing import Pool
 
 
 class MotionVector:
+    '''
+    A Motion Vector describing a detected movement
+
+    Attributes
+    ----------
+    origin_x : int
+            The X coordinate from where the vector originates
+    origin_y : int
+            The Y coordinate from where the vector originates
+    target_x : int
+            The X coordinate where the vector ends
+    target_y : int
+            The Y coordinate where the vector ends
+    magnitude : int
+            The strength of the detected movement
+    '''
+
     def __init__(self, origin_x: int, origin_y: int, target_x: int, target_y: int, magnitude: int):
+        '''
+        Parameters
+        ---------
+        origin_x : int
+                The X coordinate from where the vector originates
+        origin_y : int
+                The Y coordinate from where the vector originates
+        target_x : int
+                The X coordinate where the vector ends
+        target_y : int
+                The Y coordinate where the vector ends
+        magnitude : int
+                The strength of the detected movement
+        '''
+
         self.origin_x: int = origin_x
         self.origin_y: int = origin_y
         self.target_x: int = target_x
@@ -13,50 +48,87 @@ class MotionVector:
         self.magnitude: int = magnitude
 
     def __str__(self):
+        '''Return a string representation of the vector'''
         return "<%dx%d [%d] %dx%d>" % (self.origin_x, self.origin_y, self.magnitude, self.target_x, self.target_y)
 
     def __repr__(self):
+        '''Return a string representation of the vector'''
         return str(self)
 
 
 class BBME:
-    def __init__(self, frames: List[np.ndarray], block_size: int = 16, algorithm: str = 'EBBME'):
-        self.frames: List[np.ndarray] = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in frames]
+    '''
+    A Block-Based Motion Estimator
+
+    Attributes
+    ----------
+    block_size : int
+        The size in pixels of each block in which frames are subdivided
+    window_size : int
+        How many neighboring blocks are searched for a match when estimating motion
+
+    '''
+
+    def __init__(self, frames: list[np.ndarray], block_size: int = 16, window_size: int = 5, algorithm: str = 'EBBME'):
+        '''
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames to process (as NumPy arrays)
+        block_size : int
+            The size in pixels of each block in which frames are subdivided
+        window_size : int
+            How many neighboring blocks are searched for a match when estimating motion
+        algorithm : str
+            Which algorithm to use to detect motion
+
+        Raises
+        ------
+        ValueError
+            If the requested algorithm is not available
+        '''
+
+        self.frames: list[np.ndarray] = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in frames]
         self.block_size: int = block_size
+        self.window_size = window_size
         if algorithm != 'EBBME':
             raise ValueError("Algorithm not implemented: %s" % algorithm)
 
     def calculate_motion_field(self):
-        res = []
+        '''
+        Iterate all frames to estimate a motion field for each one
+
+        Returns
+        -------
+        motion_field : list[np.ndaray]
+            A list of motion fields, one for each frame after the first
+        '''
 
         with Pool() as p:
-            res = p.map(
+            return p.map(
                 self._calculate_frame_mf,
                 [(self.frames[i-1], self.frames[i]) for i in range(1, len(self.frames))]
             )
 
-        return res
+    def _calculate_frame_mf(self, frames_pair) -> np.ndarray:
+        '''
+        Subdivide a pair of frames into blocks and compare them to estimate a motion field
 
-        # f_prev = None
-        # for i, f in enumerate(self.frames):
-        #     print("%.2f%% (%d/%d)" % (100*i/len(self.frames), i, len(self.frames)), end='\r')
-        #
-        #     if f_prev is None:
-        #         yield []
-        #     else:
-        #         yield self._calculate_frame_mf((f_prev, f))
-        #     f_prev = f
-        # print()
+        Parameters
+        ----------
+        frames_pair : tuple[np.ndaray, np.ndaray]
+            The two frames from which to extract a motion field
 
-    # def _calculate_frame_mf(self, f_ref: np.ndarray, f_target: np.ndarray) -> List[MotionVector]:
-    def _calculate_frame_mf(self, args) -> np.ndarray:
-        f_ref, f_target = args
+        Returns
+        -------
+        motion_field : np.ndarray
+            A matrix of motion vectors among frame blocks
+        '''
+
+        f_ref, f_target = frames_pair
         h, w = f_ref.shape
         bh, bw = h//self.block_size, w//self.block_size
         MF: np.ndarray = np.ndarray(shape=(bh, bw), dtype=MotionVector)
-
-        # with Pool() as p:
-        #     MF = p.map(self._calculate_block_vector, [(f_ref, f_target, x, y) for x in range(bw) for y in range(bh)])
 
         for bx in range(bw):
             for by in range(bh):
@@ -65,8 +137,28 @@ class BBME:
         return MF
 
     def _calculate_block_vector(self, f_ref: np.ndarray, f_target: np.ndarray, block_x: int, block_y: int) -> MotionVector:
-        ws = 5
-        DFDs: np.ndarray = self._calculate_blocks_DFD(f_ref, f_target, block_x, block_y, ws)
+        '''
+        Calculate the motion vector of a given block between two frames
+
+        Parameters
+        ----------
+        f_ref : np.ndaray
+            The reference frame
+        f_target : np.ndaray
+            The target frame
+        block_x : int
+            The X coordinate of the block to analyze
+        block_y : int
+            The Y coordinate of the block to analyze
+
+        Returns
+        -------
+        vector : `MotionVector`
+            The estimated motion vector for the given block
+        '''
+
+        ws = self.window_size
+        DFDs: np.ndarray = self._calculate_blocks_DFD(f_ref, f_target, block_x, block_y)
         bs, hbs = self.block_size, self.block_size//2
         min_x, min_y, min_val = ws//2, ws//2, DFDs[ws//2, ws//2]
 
@@ -83,9 +175,30 @@ class BBME:
             DFDs[min_y, min_x]
         )
 
-    def _calculate_blocks_DFD(self, f_ref: np.ndarray, f_target: np.ndarray, block_x: int, block_y: int, ws: int) -> np.ndarray:
+    def _calculate_blocks_DFD(self, f_ref: np.ndarray, f_target: np.ndarray, block_x: int, block_y: int) -> np.ndarray:
+        '''
+        Calculate the Displaced Frame Difference (DFD) for each block inside the search window of the given block
+
+        Parameters
+        ----------
+        f_ref : np.ndaray
+            The reference frame
+        f_target : np.ndaray
+            The target frame
+        block_x : int
+            The X coordinate of the reference block
+        block_y : int
+            The Y coordinate of the reference block
+
+        Returns
+        -------
+        blocks : np.ndaray
+            A matrix of DFD values for all blocks in the search window
+        '''
+
         h, w = f_ref.shape
-        bs, bw, bh = self.block_size, w//self.block_size, h//self.block_size
+        ws, bs = self.window_size, self.block_size
+        bw, bh = w//bs, h//bs
         blocks = np.ndarray(shape=(ws, ws), dtype=int)
 
         for bx in range(ws):

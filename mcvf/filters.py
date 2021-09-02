@@ -1,5 +1,8 @@
+'''
+Video filters with support for motion-compensation
+'''
+
 import cv2
-from typing import List
 import numpy as np
 from multiprocessing import Pool
 
@@ -7,14 +10,35 @@ from mcvf import motion_estimation
 
 
 class Filter:
+    '''
+    Base class for video filters
+    '''
+
     def __init__(self):
         pass
 
-    def filter_frames(self, frames: List[np.ndarray]) -> List[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
+        '''
+        Parse the given list of frames and return a new list of filtered ones
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        '''
         pass
 
 
 class GaussianFilter(Filter):
+    '''
+    Low-Pass Gaussian blur
+    '''
+
     def __init__(self):
         self.kernel = np.array([
             [1,  4,  7,  4, 1],
@@ -24,7 +48,7 @@ class GaussianFilter(Filter):
             [1,  4,  7,  4, 1]
         ])/273
 
-    def filter_frames(self, frames: List[np.ndarray]) -> List[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
         if len(frames) == 0:
             return []
         if frames[0].ndim != 3:
@@ -34,46 +58,64 @@ class GaussianFilter(Filter):
 
     def _filter_frame(self, frame):
         new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
-        return cv2.GaussianBlur(frame, (5, 5), 1)
 
-        # print("Frame:", idx+1)
-        height, width, channels = frame.shape
-        new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
-        kh, kw = self.kernel.shape[0]//2, self.kernel.shape[1]//2
+        if True:
+            # Faster OpenCV implementation
+            return cv2.GaussianBlur(frame, (5, 5), 1)
+        else:
+            # Slower self-implementation
+            height, width, channels = frame.shape
+            new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
+            kh, kw = self.kernel.shape[0]//2, self.kernel.shape[1]//2
 
-        for x in range(kw, width-kw):
-            for y in range(kh, height-kh):
-                pixel = [0, 0, 0]
+            for x in range(kw, width-kw):
+                for y in range(kh, height-kh):
+                    pixel = [0, 0, 0]
 
-                for kern_x in range(-kw, kw):
-                    for kern_y in range(-kh, kh):
-                        pixel += frame[y+kern_y, x+kern_x]*self.kernel[kh+kern_y][kw+kern_x]
+                    for kern_x in range(-kw, kw):
+                        for kern_y in range(-kh, kh):
+                            pixel += frame[y+kern_y, x+kern_x]*self.kernel[kh+kern_y][kw+kern_x]
 
-                new_frame[y, x] = pixel
+                    new_frame[y, x] = pixel
 
-        return new_frame
-
-
-'''
-    Motion-Compensated Gaussian Filter
-'''
+            return new_frame
 
 
 class MCGaussianFilter(GaussianFilter):
-    def __init__(self):
+    '''
+    Motion-Compensated Low-Pass gaussian blur
+
+    Attributes
+    ----------
+    block_size : int
+        The size in pixel of the blocks in which the frames will be subdivided
+    motion_threshold : int
+        The motion vector strength above which there will be considered to be movement
+    '''
+
+    def __init__(self, block_size, motion_threshold):
+        '''
+        Parameters
+        ----------
+        block_size : int
+            The size in pixel of the blocks in which the frames will be subdivided
+        motion_threshold : int
+            The motion vector strength above which there will be considered to be movement
+        '''
+
         super()
-        self.block_size = 4
-        self.motion_threshold = 0
+        self.block_size = block_size
+        self.motion_threshold = motion_threshold
 
     def filter_frames(self, frames):
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         MF = BBME.calculate_motion_field()
-        frames = frames[1:]
 
-        if len(frames) != len(MF):
-            print("Size mismatch: %d frames / %d MFs" % (len(frames), len(MF)))
+        if len(frames) - 1 != len(MF):
+            raise ValueError("Size mismatch: %d (-1) frames / %d MFs" % (len(frames), len(MF)))
 
-        for frame, mf in zip(frames, MF):
+        yield frames[0]
+        for frame, mf in zip(frames[1:], MF):
             yield self._filter_frame(frame, mf)
 
     def _filter_frame(self, frame, mf):
@@ -91,12 +133,27 @@ class MCGaussianFilter(GaussianFilter):
         return frame
 
 
-class BBMEDrawerFilter(Filter):
-    def __init__(self):
-        pass
+class MFDrawerFilter(Filter):
+    '''
+    A drawer filter to render motion vectors onto each frame
 
-    def filter_frames(self, frames: List[np.ndarray]) -> List[np.ndarray]:
-        BBME = motion_estimation.BBME(frames, block_size=15)
+    Attributes
+    ----------
+    block_size : int
+        The size in pixel of the blocks in which the frames will be subdivided
+    '''
+
+    def __init__(self, block_size):
+        '''
+        Parameters
+        ----------
+        block_size : int
+            The size in pixel of the blocks in which the frames will be subdivided
+        '''
+        self.block_size = block_size
+
+    def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
+        BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         # max_mag = 255*BBME.block_size*BBME.block_size
         max_mag = 1*BBME.block_size*BBME.block_size
 

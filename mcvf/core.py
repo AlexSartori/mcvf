@@ -1,3 +1,7 @@
+'''
+Core MCVF components
+'''
+
 from typing import List
 import cv2
 import numpy as np
@@ -5,6 +9,10 @@ from mcvf import filters
 
 
 class Video:
+    '''
+    A sequence of frames read from a file
+    '''
+
     def __init__(self, fname: str = None):
         self.frames: List[np.ndarray] = []
 
@@ -12,6 +20,14 @@ class Video:
             self.load_from_file(fname)
 
     def load_from_file(self, fname: str):
+        '''
+        Load a video from filesystem
+
+        Parameters
+        ----------
+        fname : str
+            The name of the file to load
+        '''
         if len(self.frames) != 0:
             self.frames = []
 
@@ -28,7 +44,17 @@ class Video:
         cap.release()
 
     def save_to_file(self, fname: str, fps: int):
-        # W, H = 640, 460
+        '''
+        Write the sequence of frames to a MP4 file
+
+        Parameters
+        ----------
+        fname : str
+            The name of the file to write
+        fps : int
+            How many frames per second to encode in the destination file
+        '''
+
         H, W, _ = self.frames[0].shape
 
         out = cv2.VideoWriter(
@@ -36,12 +62,16 @@ class Video:
         )
 
         for frame in list(self.frames):
-            out.write(cv2.resize(frame, (W, H)))
+            # out.write(cv2.resize(frame, (W, H)))
             out.write(frame)
 
         out.release()
 
     def play(self):
+        '''
+        Instantiate an OpenCV window and display all frames one by one
+        '''
+
         for frame in self.frames:
             cv2.imshow("Frame", frame)
             if cv2.waitKey(100) & 0xFF == ord('q'):
@@ -49,4 +79,13 @@ class Video:
         cv2.destroyWindow("Frame")
 
     def apply_filter(self, filter: filters.Filter):
+        '''
+        Parse all frmes through a given filter instance
+
+        Parameters
+        ----------
+        filter : filters.Filter
+            A filter instance to parse frames
+        '''
+
         self.frames = list(filter.filter_frames(self.frames))
