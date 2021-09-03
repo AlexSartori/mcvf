@@ -34,6 +34,42 @@ class Filter:
         pass
 
 
+class MCFilter(Filter):
+    '''
+    Base class for motion-compensated video filters
+    '''
+
+    def __init__(self, block_size: int, motion_threshold: int):
+        '''
+        Parameters
+        ----------
+        block_size : int
+            The size in pixel of the blocks in which the frames will be subdivided
+        motion_threshold : int
+            The motion vector strength above which there will be considered to be movement
+        '''
+
+        super()
+        self.block_size = block_size
+        self.motion_threshold = motion_threshold
+
+    def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
+        '''
+        Parse the given list of frames and return a new list of filtered ones
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        '''
+        pass
+
+
 class GaussianFilter(Filter):
     '''
     Low-Pass Gaussian blur
@@ -81,31 +117,13 @@ class GaussianFilter(Filter):
             return new_frame
 
 
-class MCGaussianFilter(GaussianFilter):
+class MCGaussianFilter(MCFilter):
     '''
     Motion-Compensated Low-Pass gaussian blur
-
-    Attributes
-    ----------
-    block_size : int
-        The size in pixel of the blocks in which the frames will be subdivided
-    motion_threshold : int
-        The motion vector strength above which there will be considered to be movement
     '''
 
-    def __init__(self, block_size, motion_threshold):
-        '''
-        Parameters
-        ----------
-        block_size : int
-            The size in pixel of the blocks in which the frames will be subdivided
-        motion_threshold : int
-            The motion vector strength above which there will be considered to be movement
-        '''
-
-        super()
-        self.block_size = block_size
-        self.motion_threshold = motion_threshold
+    def __init__(self, block_size: int, motion_threshold: int):
+        super().__init__(block_size, motion_threshold)
 
     def filter_frames(self, frames):
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
@@ -126,8 +144,38 @@ class MCGaussianFilter(GaussianFilter):
             for by in range(bh):
                 if mf[by, bx].magnitude <= self.motion_threshold:
                     x, y = bx*bs, by*bs
-                    # frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
-                    # frame[y:y+bs, x:x+bs] = np.zeros(shape=(bs, bs, 3))
+                    frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
+
+        return frame
+
+
+class MCDarkenFilter(MCFilter):
+    '''
+    Motion-Compensated darkening filter
+    '''
+
+    def __init__(self, block_size: int, motion_threshold: int):
+        super().__init__(block_size, motion_threshold)
+
+    def filter_frames(self, frames):
+        BBME = motion_estimation.BBME(frames, block_size=self.block_size)
+        MF = BBME.calculate_motion_field()
+
+        if len(frames) - 1 != len(MF):
+            raise ValueError("Size mismatch: %d (-1) frames / %d MFs" % (len(frames), len(MF)))
+
+        yield frames[0]
+        for frame, mf in zip(frames[1:], MF):
+            yield self._filter_frame(frame, mf)
+
+    def _filter_frame(self, frame, mf):
+        bh, bw = mf.shape
+        bs = self.block_size
+
+        for bx in range(bw):
+            for by in range(bh):
+                if mf[by, bx].magnitude <= self.motion_threshold:
+                    x, y = bx*bs, by*bs
                     frame[y:y+bs, x:x+bs] = frame[y:y+bs, x:x+bs]//3
 
         return frame
@@ -154,15 +202,15 @@ class MFDrawerFilter(Filter):
 
     def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
-        # max_mag = 255*BBME.block_size*BBME.block_size
-        max_mag = 1*BBME.block_size*BBME.block_size
+        max_mag = 255*BBME.block_size*BBME.block_size
+        # max_mag = 1*BBME.block_size*BBME.block_size
 
         for frame, mf in zip(frames, BBME.calculate_motion_field()):
             new_f = frame
 
             for row in mf:
                 for vector in row:
-                    len = 5*vector.magnitude/max_mag
+                    len = min(0.7, 5*vector.magnitude/max_mag)
                     tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
                     ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
 

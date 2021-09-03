@@ -74,13 +74,13 @@ class Video:
 
         for frame in self.frames:
             cv2.imshow("Frame", frame)
-            if cv2.waitKey(100) & 0xFF == ord('q'):
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         cv2.destroyWindow("Frame")
 
     def apply_filter(self, filter: filters.Filter):
         '''
-        Parse all frmes through a given filter instance
+        Parse all frames through a given filter instance
 
         Parameters
         ----------

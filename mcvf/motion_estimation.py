@@ -196,6 +196,7 @@ class BBME:
             A matrix of DFD values for all blocks in the search window
         '''
 
+        p = 2
         h, w = f_ref.shape
         ws, bs = self.window_size, self.block_size
         bw, bh = w//bs, h//bs
@@ -218,7 +219,7 @@ class BBME:
                 for px_x in range(wx*bs, wx*bs+bs):
                     for px_y in range(wy*bs, wy*bs+bs):
                         blocks[by, bx] += abs(
-                            int(f_ref[px_y, px_x]) - int(f_target[px_y, px_x])
-                        )
+                            int(f_target[px_y, px_x]) - int(f_ref[px_y, px_x])
+                        )**p
 
         return blocks

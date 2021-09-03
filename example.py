@@ -1,12 +1,12 @@
-from mcvf import mcvf, filters
+from mcvf import core, filters
 
 
 print("Loading sample video...")
-v = mcvf.Video('test-video-2.mp4')
+v = core.Video('test-video-1.mp4')
 
 print("Filtering...")
-v.apply_filter(filters.MCGaussianFilter(4, 0))
-# v.apply_filter(filters.MFDrawerFilter(15))
+v.apply_filter(filters.MCDarkenFilter(8, 0))
+# v.apply_filter(filters.MFDrawerFilter(8))
 
 print("Playing...")
 v.play()
