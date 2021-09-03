@@ -31,9 +31,10 @@
 Video filters with support for motion-compensation
 &#39;&#39;&#39;
 
-import cv2
+import cv2  # type: ignore # Tell MyPy to ignore missing type hints
 import numpy as np
 from multiprocessing import Pool
+from typing import Iterable
 
 from mcvf import motion_estimation
 
@@ -46,7 +47,43 @@ class Filter:
     def __init__(self):
         pass
 
-    def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Parse the given list of frames and return a new list of filtered ones
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+        pass
+
+
+class MCFilter(Filter):
+    &#39;&#39;&#39;
+    Base class for motion-compensated video filters
+    &#39;&#39;&#39;
+
+    def __init__(self, block_size: int, motion_threshold: int):
+        &#39;&#39;&#39;
+        Parameters
+        ----------
+        block_size : int
+            The size in pixel of the blocks in which the frames will be subdivided
+        motion_threshold : int
+            The motion vector strength above which there will be considered to be movement
+        &#39;&#39;&#39;
+
+        super()
+        self.block_size = block_size
+        self.motion_threshold = motion_threshold
+
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         &#39;&#39;&#39;
         Parse the given list of frames and return a new list of filtered ones
 
@@ -77,7 +114,7 @@ class GaussianFilter(Filter):
             [1,  4,  7,  4, 1]
         ])/273
 
-    def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         if len(frames) == 0:
             return []
         if frames[0].ndim != 3:
@@ -85,7 +122,7 @@ class GaussianFilter(Filter):
         with Pool() as p:
             return p.map(self._filter_frame, frames)
 
-    def _filter_frame(self, frame):
+    def _filter_frame(self, frame: np.ndarray):
         new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
 
         if True:
@@ -110,33 +147,15 @@ class GaussianFilter(Filter):
             return new_frame
 
 
-class MCGaussianFilter(GaussianFilter):
+class MCGaussianFilter(MCFilter):
     &#39;&#39;&#39;
     Motion-Compensated Low-Pass gaussian blur
-
-    Attributes
-    ----------
-    block_size : int
-        The size in pixel of the blocks in which the frames will be subdivided
-    motion_threshold : int
-        The motion vector strength above which there will be considered to be movement
     &#39;&#39;&#39;
 
-    def __init__(self, block_size, motion_threshold):
-        &#39;&#39;&#39;
-        Parameters
-        ----------
-        block_size : int
-            The size in pixel of the blocks in which the frames will be subdivided
-        motion_threshold : int
-            The motion vector strength above which there will be considered to be movement
-        &#39;&#39;&#39;
+    def __init__(self, block_size: int, motion_threshold: int):
+        super().__init__(block_size, motion_threshold)
 
-        super()
-        self.block_size = block_size
-        self.motion_threshold = motion_threshold
-
-    def filter_frames(self, frames):
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         MF = BBME.calculate_motion_field()
 
@@ -147,7 +166,7 @@ class MCGaussianFilter(GaussianFilter):
         for frame, mf in zip(frames[1:], MF):
             yield self._filter_frame(frame, mf)
 
-    def _filter_frame(self, frame, mf):
+    def _filter_frame(self, frame: np.ndarray, mf: np.ndarray):
         bh, bw = mf.shape
         bs = self.block_size
 
@@ -155,8 +174,38 @@ class MCGaussianFilter(GaussianFilter):
             for by in range(bh):
                 if mf[by, bx].magnitude &lt;= self.motion_threshold:
                     x, y = bx*bs, by*bs
-                    # frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
-                    # frame[y:y+bs, x:x+bs] = np.zeros(shape=(bs, bs, 3))
+                    frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
+
+        return frame
+
+
+class MCDarkenFilter(MCFilter):
+    &#39;&#39;&#39;
+    Motion-Compensated darkening filter
+    &#39;&#39;&#39;
+
+    def __init__(self, block_size: int, motion_threshold: int):
+        super().__init__(block_size, motion_threshold)
+
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        BBME = motion_estimation.BBME(frames, block_size=self.block_size)
+        MF = BBME.calculate_motion_field()
+
+        if len(frames) - 1 != len(MF):
+            raise ValueError(&#34;Size mismatch: %d (-1) frames / %d MFs&#34; % (len(frames), len(MF)))
+
+        yield frames[0]
+        for frame, mf in zip(frames[1:], MF):
+            yield self._filter_frame(frame, mf)
+
+    def _filter_frame(self, frame: np.ndarray, mf: np.ndarray):
+        bh, bw = mf.shape
+        bs = self.block_size
+
+        for bx in range(bw):
+            for by in range(bh):
+                if mf[by, bx].magnitude &lt;= self.motion_threshold:
+                    x, y = bx*bs, by*bs
                     frame[y:y+bs, x:x+bs] = frame[y:y+bs, x:x+bs]//3
 
         return frame
@@ -172,7 +221,7 @@ class MFDrawerFilter(Filter):
         The size in pixel of the blocks in which the frames will be subdivided
     &#39;&#39;&#39;
 
-    def __init__(self, block_size):
+    def __init__(self, block_size: int):
         &#39;&#39;&#39;
         Parameters
         ----------
@@ -181,17 +230,17 @@ class MFDrawerFilter(Filter):
         &#39;&#39;&#39;
         self.block_size = block_size
 
-    def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
-        # max_mag = 255*BBME.block_size*BBME.block_size
-        max_mag = 1*BBME.block_size*BBME.block_size
+        max_mag = 255*BBME.block_size*BBME.block_size
+        # max_mag = 1*BBME.block_size*BBME.block_size
 
         for frame, mf in zip(frames, BBME.calculate_motion_field()):
             new_f = frame
 
             for row in mf:
                 for vector in row:
-                    len = 5*vector.magnitude/max_mag
+                    len = min(0.7, 5*vector.magnitude/max_mag)
                     tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
                     ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
 
@@ -233,7 +282,7 @@ class MFDrawerFilter(Filter):
     def __init__(self):
         pass
 
-    def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         &#39;&#39;&#39;
         Parse the given list of frames and return a new list of filtered ones
 
@@ -252,12 +301,13 @@ class MFDrawerFilter(Filter):
 <h3>Subclasses</h3>
 <ul class="hlist">
 <li><a title="mcvf.filters.GaussianFilter" href="#mcvf.filters.GaussianFilter">GaussianFilter</a></li>
+<li><a title="mcvf.filters.MCFilter" href="#mcvf.filters.MCFilter">MCFilter</a></li>
 <li><a title="mcvf.filters.MFDrawerFilter" href="#mcvf.filters.MFDrawerFilter">MFDrawerFilter</a></li>
 </ul>
 <h3>Methods</h3>
 <dl>
 <dt id="mcvf.filters.Filter.filter_frames"><code class="name flex">
-<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> list</span>
+<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Parse the given list of frames and return a new list of filtered ones</p>
@@ -274,7 +324,7 @@ class MFDrawerFilter(Filter):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
     &#39;&#39;&#39;
     Parse the given list of frames and return a new list of filtered ones
 
@@ -316,7 +366,7 @@ class MFDrawerFilter(Filter):
             [1,  4,  7,  4, 1]
         ])/273
 
-    def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         if len(frames) == 0:
             return []
         if frames[0].ndim != 3:
@@ -324,7 +374,7 @@ class MFDrawerFilter(Filter):
         with Pool() as p:
             return p.map(self._filter_frame, frames)
 
-    def _filter_frame(self, frame):
+    def _filter_frame(self, frame: np.ndarray):
         new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
 
         if True:
@@ -352,14 +402,10 @@ class MFDrawerFilter(Filter):
 <ul class="hlist">
 <li><a title="mcvf.filters.Filter" href="#mcvf.filters.Filter">Filter</a></li>
 </ul>
-<h3>Subclasses</h3>
-<ul class="hlist">
-<li><a title="mcvf.filters.MCGaussianFilter" href="#mcvf.filters.MCGaussianFilter">MCGaussianFilter</a></li>
-</ul>
 <h3>Methods</h3>
 <dl>
 <dt id="mcvf.filters.GaussianFilter.filter_frames"><code class="name flex">
-<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> list</span>
+<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
 <p class="inheritance">
@@ -371,7 +417,7 @@ class MFDrawerFilter(Filter):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
     if len(frames) == 0:
         return []
     if frames[0].ndim != 3:
@@ -382,19 +428,12 @@ class MFDrawerFilter(Filter):
 </dd>
 </dl>
 </dd>
-<dt id="mcvf.filters.MCGaussianFilter"><code class="flex name class">
-<span>class <span class="ident">MCGaussianFilter</span></span>
-<span>(</span><span>block_size, motion_threshold)</span>
+<dt id="mcvf.filters.MCDarkenFilter"><code class="flex name class">
+<span>class <span class="ident">MCDarkenFilter</span></span>
+<span>(</span><span>block_size: int, motion_threshold: int)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Motion-Compensated Low-Pass gaussian blur</p>
-<h2 id="attributes">Attributes</h2>
-<dl>
-<dt><strong><code>block_size</code></strong> :&ensp;<code>int</code></dt>
-<dd>The size in pixel of the blocks in which the frames will be subdivided</dd>
-<dt><strong><code>motion_threshold</code></strong> :&ensp;<code>int</code></dt>
-<dd>The motion vector strength above which there will be considered to be movement</dd>
-</dl>
+<div class="desc"><p>Motion-Compensated darkening filter</p>
 <h2 id="parameters">Parameters</h2>
 <dl>
 <dt><strong><code>block_size</code></strong> :&ensp;<code>int</code></dt>
@@ -406,19 +445,94 @@ class MFDrawerFilter(Filter):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">class MCGaussianFilter(GaussianFilter):
+<pre><code class="python">class MCDarkenFilter(MCFilter):
     &#39;&#39;&#39;
-    Motion-Compensated Low-Pass gaussian blur
-
-    Attributes
-    ----------
-    block_size : int
-        The size in pixel of the blocks in which the frames will be subdivided
-    motion_threshold : int
-        The motion vector strength above which there will be considered to be movement
+    Motion-Compensated darkening filter
     &#39;&#39;&#39;
 
-    def __init__(self, block_size, motion_threshold):
+    def __init__(self, block_size: int, motion_threshold: int):
+        super().__init__(block_size, motion_threshold)
+
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        BBME = motion_estimation.BBME(frames, block_size=self.block_size)
+        MF = BBME.calculate_motion_field()
+
+        if len(frames) - 1 != len(MF):
+            raise ValueError(&#34;Size mismatch: %d (-1) frames / %d MFs&#34; % (len(frames), len(MF)))
+
+        yield frames[0]
+        for frame, mf in zip(frames[1:], MF):
+            yield self._filter_frame(frame, mf)
+
+    def _filter_frame(self, frame: np.ndarray, mf: np.ndarray):
+        bh, bw = mf.shape
+        bs = self.block_size
+
+        for bx in range(bw):
+            for by in range(bh):
+                if mf[by, bx].magnitude &lt;= self.motion_threshold:
+                    x, y = bx*bs, by*bs
+                    frame[y:y+bs, x:x+bs] = frame[y:y+bs, x:x+bs]//3
+
+        return frame</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="mcvf.filters.MCFilter" href="#mcvf.filters.MCFilter">MCFilter</a></li>
+<li><a title="mcvf.filters.Filter" href="#mcvf.filters.Filter">Filter</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="mcvf.filters.MCDarkenFilter.filter_frames"><code class="name flex">
+<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
+</code></dt>
+<dd>
+<p class="inheritance">
+<em>Inherited from:</em>
+<code><a title="mcvf.filters.MCFilter" href="#mcvf.filters.MCFilter">MCFilter</a></code>.<code><a title="mcvf.filters.MCFilter.filter_frames" href="#mcvf.filters.MCFilter.filter_frames">filter_frames</a></code>
+</p>
+<div class="desc inherited"><p>Parse the given list of frames and return a new list of filtered ones …</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+    BBME = motion_estimation.BBME(frames, block_size=self.block_size)
+    MF = BBME.calculate_motion_field()
+
+    if len(frames) - 1 != len(MF):
+        raise ValueError(&#34;Size mismatch: %d (-1) frames / %d MFs&#34; % (len(frames), len(MF)))
+
+    yield frames[0]
+    for frame, mf in zip(frames[1:], MF):
+        yield self._filter_frame(frame, mf)</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="mcvf.filters.MCFilter"><code class="flex name class">
+<span>class <span class="ident">MCFilter</span></span>
+<span>(</span><span>block_size: int, motion_threshold: int)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Base class for motion-compensated video filters</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>block_size</code></strong> :&ensp;<code>int</code></dt>
+<dd>The size in pixel of the blocks in which the frames will be subdivided</dd>
+<dt><strong><code>motion_threshold</code></strong> :&ensp;<code>int</code></dt>
+<dd>The motion vector strength above which there will be considered to be movement</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class MCFilter(Filter):
+    &#39;&#39;&#39;
+    Base class for motion-compensated video filters
+    &#39;&#39;&#39;
+
+    def __init__(self, block_size: int, motion_threshold: int):
         &#39;&#39;&#39;
         Parameters
         ----------
@@ -432,7 +546,91 @@ class MFDrawerFilter(Filter):
         self.block_size = block_size
         self.motion_threshold = motion_threshold
 
-    def filter_frames(self, frames):
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Parse the given list of frames and return a new list of filtered ones
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+        pass</code></pre>
+</details>
+<h3>Ancestors</h3>
+<ul class="hlist">
+<li><a title="mcvf.filters.Filter" href="#mcvf.filters.Filter">Filter</a></li>
+</ul>
+<h3>Subclasses</h3>
+<ul class="hlist">
+<li><a title="mcvf.filters.MCDarkenFilter" href="#mcvf.filters.MCDarkenFilter">MCDarkenFilter</a></li>
+<li><a title="mcvf.filters.MCGaussianFilter" href="#mcvf.filters.MCGaussianFilter">MCGaussianFilter</a></li>
+</ul>
+<h3>Methods</h3>
+<dl>
+<dt id="mcvf.filters.MCFilter.filter_frames"><code class="name flex">
+<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
+</code></dt>
+<dd>
+<p class="inheritance">
+<em>Inherited from:</em>
+<code><a title="mcvf.filters.Filter" href="#mcvf.filters.Filter">Filter</a></code>.<code><a title="mcvf.filters.Filter.filter_frames" href="#mcvf.filters.Filter.filter_frames">filter_frames</a></code>
+</p>
+<div class="desc inherited"><p>Parse the given list of frames and return a new list of filtered ones …</p></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+    &#39;&#39;&#39;
+    Parse the given list of frames and return a new list of filtered ones
+
+    Parameters
+    ----------
+    frames : list[np.ndaray]
+        A list of frames (as NumPy arrays) to filter
+
+    Returns
+    -------
+        frames : list[np.ndarray]
+            A list of filtered frames
+    &#39;&#39;&#39;
+    pass</code></pre>
+</details>
+</dd>
+</dl>
+</dd>
+<dt id="mcvf.filters.MCGaussianFilter"><code class="flex name class">
+<span>class <span class="ident">MCGaussianFilter</span></span>
+<span>(</span><span>block_size: int, motion_threshold: int)</span>
+</code></dt>
+<dd>
+<div class="desc"><p>Motion-Compensated Low-Pass gaussian blur</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>block_size</code></strong> :&ensp;<code>int</code></dt>
+<dd>The size in pixel of the blocks in which the frames will be subdivided</dd>
+<dt><strong><code>motion_threshold</code></strong> :&ensp;<code>int</code></dt>
+<dd>The motion vector strength above which there will be considered to be movement</dd>
+</dl></div>
+<details class="source">
+<summary>
+<span>Expand source code</span>
+</summary>
+<pre><code class="python">class MCGaussianFilter(MCFilter):
+    &#39;&#39;&#39;
+    Motion-Compensated Low-Pass gaussian blur
+    &#39;&#39;&#39;
+
+    def __init__(self, block_size: int, motion_threshold: int):
+        super().__init__(block_size, motion_threshold)
+
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         MF = BBME.calculate_motion_field()
 
@@ -443,7 +641,7 @@ class MFDrawerFilter(Filter):
         for frame, mf in zip(frames[1:], MF):
             yield self._filter_frame(frame, mf)
 
-    def _filter_frame(self, frame, mf):
+    def _filter_frame(self, frame: np.ndarray, mf: np.ndarray):
         bh, bw = mf.shape
         bs = self.block_size
 
@@ -451,33 +649,31 @@ class MFDrawerFilter(Filter):
             for by in range(bh):
                 if mf[by, bx].magnitude &lt;= self.motion_threshold:
                     x, y = bx*bs, by*bs
-                    # frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
-                    # frame[y:y+bs, x:x+bs] = np.zeros(shape=(bs, bs, 3))
-                    frame[y:y+bs, x:x+bs] = frame[y:y+bs, x:x+bs]//3
+                    frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
 
         return frame</code></pre>
 </details>
 <h3>Ancestors</h3>
 <ul class="hlist">
-<li><a title="mcvf.filters.GaussianFilter" href="#mcvf.filters.GaussianFilter">GaussianFilter</a></li>
+<li><a title="mcvf.filters.MCFilter" href="#mcvf.filters.MCFilter">MCFilter</a></li>
 <li><a title="mcvf.filters.Filter" href="#mcvf.filters.Filter">Filter</a></li>
 </ul>
 <h3>Methods</h3>
 <dl>
 <dt id="mcvf.filters.MCGaussianFilter.filter_frames"><code class="name flex">
-<span>def <span class="ident">filter_frames</span></span>(<span>self, frames)</span>
+<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
 <p class="inheritance">
 <em>Inherited from:</em>
-<code><a title="mcvf.filters.GaussianFilter" href="#mcvf.filters.GaussianFilter">GaussianFilter</a></code>.<code><a title="mcvf.filters.GaussianFilter.filter_frames" href="#mcvf.filters.GaussianFilter.filter_frames">filter_frames</a></code>
+<code><a title="mcvf.filters.MCFilter" href="#mcvf.filters.MCFilter">MCFilter</a></code>.<code><a title="mcvf.filters.MCFilter.filter_frames" href="#mcvf.filters.MCFilter.filter_frames">filter_frames</a></code>
 </p>
 <div class="desc inherited"><p>Parse the given list of frames and return a new list of filtered ones …</p></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def filter_frames(self, frames):
+<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
     BBME = motion_estimation.BBME(frames, block_size=self.block_size)
     MF = BBME.calculate_motion_field()
 
@@ -493,7 +689,7 @@ class MFDrawerFilter(Filter):
 </dd>
 <dt id="mcvf.filters.MFDrawerFilter"><code class="flex name class">
 <span>class <span class="ident">MFDrawerFilter</span></span>
-<span>(</span><span>block_size)</span>
+<span>(</span><span>block_size: int)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>A drawer filter to render motion vectors onto each frame</p>
@@ -521,7 +717,7 @@ class MFDrawerFilter(Filter):
         The size in pixel of the blocks in which the frames will be subdivided
     &#39;&#39;&#39;
 
-    def __init__(self, block_size):
+    def __init__(self, block_size: int):
         &#39;&#39;&#39;
         Parameters
         ----------
@@ -530,17 +726,17 @@ class MFDrawerFilter(Filter):
         &#39;&#39;&#39;
         self.block_size = block_size
 
-    def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
-        # max_mag = 255*BBME.block_size*BBME.block_size
-        max_mag = 1*BBME.block_size*BBME.block_size
+        max_mag = 255*BBME.block_size*BBME.block_size
+        # max_mag = 1*BBME.block_size*BBME.block_size
 
         for frame, mf in zip(frames, BBME.calculate_motion_field()):
             new_f = frame
 
             for row in mf:
                 for vector in row:
-                    len = 5*vector.magnitude/max_mag
+                    len = min(0.7, 5*vector.magnitude/max_mag)
                     tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
                     ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
 
@@ -562,7 +758,7 @@ class MFDrawerFilter(Filter):
 <h3>Methods</h3>
 <dl>
 <dt id="mcvf.filters.MFDrawerFilter.filter_frames"><code class="name flex">
-<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> list</span>
+<span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
 <p class="inheritance">
@@ -574,17 +770,17 @@ class MFDrawerFilter(Filter):
 <summary>
 <span>Expand source code</span>
 </summary>
-<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; list[np.ndarray]:
+<pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
     BBME = motion_estimation.BBME(frames, block_size=self.block_size)
-    # max_mag = 255*BBME.block_size*BBME.block_size
-    max_mag = 1*BBME.block_size*BBME.block_size
+    max_mag = 255*BBME.block_size*BBME.block_size
+    # max_mag = 1*BBME.block_size*BBME.block_size
 
     for frame, mf in zip(frames, BBME.calculate_motion_field()):
         new_f = frame
 
         for row in mf:
             for vector in row:
-                len = 5*vector.magnitude/max_mag
+                len = min(0.7, 5*vector.magnitude/max_mag)
                 tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
                 ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
 
@@ -628,6 +824,18 @@ class MFDrawerFilter(Filter):
 <h4><code><a title="mcvf.filters.GaussianFilter" href="#mcvf.filters.GaussianFilter">GaussianFilter</a></code></h4>
 <ul class="">
 <li><code><a title="mcvf.filters.GaussianFilter.filter_frames" href="#mcvf.filters.GaussianFilter.filter_frames">filter_frames</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="mcvf.filters.MCDarkenFilter" href="#mcvf.filters.MCDarkenFilter">MCDarkenFilter</a></code></h4>
+<ul class="">
+<li><code><a title="mcvf.filters.MCDarkenFilter.filter_frames" href="#mcvf.filters.MCDarkenFilter.filter_frames">filter_frames</a></code></li>
+</ul>
+</li>
+<li>
+<h4><code><a title="mcvf.filters.MCFilter" href="#mcvf.filters.MCFilter">MCFilter</a></code></h4>
+<ul class="">
+<li><code><a title="mcvf.filters.MCFilter.filter_frames" href="#mcvf.filters.MCFilter.filter_frames">filter_frames</a></code></li>
 </ul>
 </li>
 <li>

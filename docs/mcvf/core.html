@@ -32,7 +32,7 @@ Core MCVF components
 &#39;&#39;&#39;
 
 from typing import List
-import cv2
+import cv2  # type: ignore # Tell MyPy to ignore missing type hints
 import numpy as np
 from mcvf import filters
 
@@ -57,6 +57,7 @@ class Video:
         fname : str
             The name of the file to load
         &#39;&#39;&#39;
+
         if len(self.frames) != 0:
             self.frames = []
 
@@ -109,7 +110,7 @@ class Video:
 
     def apply_filter(self, filter: filters.Filter):
         &#39;&#39;&#39;
-        Parse all frmes through a given filter instance
+        Parse all frames through a given filter instance
 
         Parameters
         ----------
@@ -159,6 +160,7 @@ class Video:
         fname : str
             The name of the file to load
         &#39;&#39;&#39;
+
         if len(self.frames) != 0:
             self.frames = []
 
@@ -211,7 +213,7 @@ class Video:
 
     def apply_filter(self, filter: filters.Filter):
         &#39;&#39;&#39;
-        Parse all frmes through a given filter instance
+        Parse all frames through a given filter instance
 
         Parameters
         ----------
@@ -227,7 +229,7 @@ class Video:
 <span>def <span class="ident">apply_filter</span></span>(<span>self, filter: <a title="mcvf.filters.Filter" href="filters.html#mcvf.filters.Filter">Filter</a>)</span>
 </code></dt>
 <dd>
-<div class="desc"><p>Parse all frmes through a given filter instance</p>
+<div class="desc"><p>Parse all frames through a given filter instance</p>
 <h2 id="parameters">Parameters</h2>
 <dl>
 <dt><strong><code>filter</code></strong> :&ensp;<code>filters.Filter</code></dt>
@@ -239,7 +241,7 @@ class Video:
 </summary>
 <pre><code class="python">def apply_filter(self, filter: filters.Filter):
     &#39;&#39;&#39;
-    Parse all frmes through a given filter instance
+    Parse all frames through a given filter instance
 
     Parameters
     ----------
@@ -273,6 +275,7 @@ class Video:
     fname : str
         The name of the file to load
     &#39;&#39;&#39;
+
     if len(self.frames) != 0:
         self.frames = []
 
