@@ -2,9 +2,13 @@
 Motion estimation utilities
 '''
 
-import cv2
+import cv2  # type: ignore # Tell MyPy to ignore missing type hints
 import numpy as np
 from multiprocessing import Pool
+
+# import numpy.typing as npt
+# import nptyping as npt
+# from typing import Any, Type, Union
 
 
 class MotionVector:
@@ -56,6 +60,11 @@ class MotionVector:
         return str(self)
 
 
+# Type aliases
+FrameType = np.ndarray  # npt.NDArray[np.int8]  # npt.NDArray[(Any, Any), np.int8]
+MFType = np.ndarray  # npt.NDArray[MotionVector]  # npt.NDArray[(Any, Any), MotionVector]
+
+
 class BBME:
     '''
     A Block-Based Motion Estimator
@@ -69,7 +78,7 @@ class BBME:
 
     '''
 
-    def __init__(self, frames: list[np.ndarray], block_size: int = 16, window_size: int = 5, algorithm: str = 'EBBME'):
+    def __init__(self, frames: list[FrameType], block_size: int = 16, window_size: int = 5, algorithm: str = 'EBBME'):
         '''
         Parameters
         ----------
@@ -88,9 +97,9 @@ class BBME:
             If the requested algorithm is not available
         '''
 
-        self.frames: list[np.ndarray] = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in frames]
+        self.frames: list[FrameType] = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in frames]
         self.block_size: int = block_size
-        self.window_size = window_size
+        self.window_size: int = window_size
         if algorithm != 'EBBME':
             raise ValueError("Algorithm not implemented: %s" % algorithm)
 
@@ -110,7 +119,7 @@ class BBME:
                 [(self.frames[i-1], self.frames[i]) for i in range(1, len(self.frames))]
             )
 
-    def _calculate_frame_mf(self, frames_pair) -> np.ndarray:
+    def _calculate_frame_mf(self, frames_pair) -> MFType:
         '''
         Subdivide a pair of frames into blocks and compare them to estimate a motion field
 
@@ -128,7 +137,7 @@ class BBME:
         f_ref, f_target = frames_pair
         h, w = f_ref.shape
         bh, bw = h//self.block_size, w//self.block_size
-        MF: np.ndarray = np.ndarray(shape=(bh, bw), dtype=MotionVector)
+        MF: MFType = np.ndarray(shape=(bh, bw), dtype=MotionVector)
 
         for bx in range(bw):
             for by in range(bh):
@@ -136,7 +145,7 @@ class BBME:
 
         return MF
 
-    def _calculate_block_vector(self, f_ref: np.ndarray, f_target: np.ndarray, block_x: int, block_y: int) -> MotionVector:
+    def _calculate_block_vector(self, f_ref: FrameType, f_target: FrameType, block_x: int, block_y: int) -> MotionVector:
         '''
         Calculate the motion vector of a given block between two frames
 
@@ -175,7 +184,7 @@ class BBME:
             DFDs[min_y, min_x]
         )
 
-    def _calculate_blocks_DFD(self, f_ref: np.ndarray, f_target: np.ndarray, block_x: int, block_y: int) -> np.ndarray:
+    def _calculate_blocks_DFD(self, f_ref: FrameType, f_target: FrameType, block_x: int, block_y: int) -> np.ndarray:
         '''
         Calculate the Displaced Frame Difference (DFD) for each block inside the search window of the given block
 

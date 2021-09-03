@@ -2,7 +2,7 @@ from mcvf import core, filters
 
 
 print("Loading sample video...")
-v = core.Video('test-video-1.mp4')
+v = core.Video('test-video-3.mp4')
 
 print("Filtering...")
 v.apply_filter(filters.MCDarkenFilter(8, 0))

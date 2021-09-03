@@ -3,7 +3,7 @@ Core MCVF components
 '''
 
 from typing import List
-import cv2
+import cv2  # type: ignore # Tell MyPy to ignore missing type hints
 import numpy as np
 from mcvf import filters
 
@@ -28,6 +28,7 @@ class Video:
         fname : str
             The name of the file to load
         '''
+
         if len(self.frames) != 0:
             self.frames = []
 
@@ -74,7 +75,7 @@ class Video:
 
         for frame in self.frames:
             cv2.imshow("Frame", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            if cv2.waitKey(100) & 0xFF == ord('q'):
                 break
         cv2.destroyWindow("Frame")
 

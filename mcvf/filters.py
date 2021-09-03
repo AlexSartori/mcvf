@@ -2,9 +2,10 @@
 Video filters with support for motion-compensation
 '''
 
-import cv2
+import cv2  # type: ignore # Tell MyPy to ignore missing type hints
 import numpy as np
 from multiprocessing import Pool
+from typing import Iterable
 
 from mcvf import motion_estimation
 
@@ -17,7 +18,7 @@ class Filter:
     def __init__(self):
         pass
 
-    def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
         '''
         Parse the given list of frames and return a new list of filtered ones
 
@@ -53,7 +54,7 @@ class MCFilter(Filter):
         self.block_size = block_size
         self.motion_threshold = motion_threshold
 
-    def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
         '''
         Parse the given list of frames and return a new list of filtered ones
 
@@ -84,7 +85,7 @@ class GaussianFilter(Filter):
             [1,  4,  7,  4, 1]
         ])/273
 
-    def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
         if len(frames) == 0:
             return []
         if frames[0].ndim != 3:
@@ -92,7 +93,7 @@ class GaussianFilter(Filter):
         with Pool() as p:
             return p.map(self._filter_frame, frames)
 
-    def _filter_frame(self, frame):
+    def _filter_frame(self, frame: np.ndarray):
         new_frame = np.ndarray(shape=frame.shape, dtype=frame.dtype)
 
         if True:
@@ -125,7 +126,7 @@ class MCGaussianFilter(MCFilter):
     def __init__(self, block_size: int, motion_threshold: int):
         super().__init__(block_size, motion_threshold)
 
-    def filter_frames(self, frames):
+    def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         MF = BBME.calculate_motion_field()
 
@@ -136,7 +137,7 @@ class MCGaussianFilter(MCFilter):
         for frame, mf in zip(frames[1:], MF):
             yield self._filter_frame(frame, mf)
 
-    def _filter_frame(self, frame, mf):
+    def _filter_frame(self, frame: np.ndarray, mf: np.ndarray):
         bh, bw = mf.shape
         bs = self.block_size
 
@@ -157,7 +158,7 @@ class MCDarkenFilter(MCFilter):
     def __init__(self, block_size: int, motion_threshold: int):
         super().__init__(block_size, motion_threshold)
 
-    def filter_frames(self, frames):
+    def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         MF = BBME.calculate_motion_field()
 
@@ -168,7 +169,7 @@ class MCDarkenFilter(MCFilter):
         for frame, mf in zip(frames[1:], MF):
             yield self._filter_frame(frame, mf)
 
-    def _filter_frame(self, frame, mf):
+    def _filter_frame(self, frame: np.ndarray, mf: np.ndarray):
         bh, bw = mf.shape
         bs = self.block_size
 
@@ -191,7 +192,7 @@ class MFDrawerFilter(Filter):
         The size in pixel of the blocks in which the frames will be subdivided
     '''
 
-    def __init__(self, block_size):
+    def __init__(self, block_size: int):
         '''
         Parameters
         ----------
@@ -200,7 +201,7 @@ class MFDrawerFilter(Filter):
         '''
         self.block_size = block_size
 
-    def filter_frames(self, frames: list[np.ndarray]) -> list[np.ndarray]:
+    def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         max_mag = 255*BBME.block_size*BBME.block_size
         # max_mag = 1*BBME.block_size*BBME.block_size
