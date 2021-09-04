@@ -75,7 +75,8 @@ class BBME:
         The size in pixels of each block in which frames are subdivided
     window_size : int
         How many neighboring blocks are searched for a match when estimating motion
-
+    algorithm : str
+        The algorithm being used to detect motion
     '''
 
     def __init__(self, frames: list[FrameType], block_size: int = 16, window_size: int = 5, algorithm: str = 'EBBME'):
@@ -100,8 +101,11 @@ class BBME:
         self.frames: list[FrameType] = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in frames]
         self.block_size: int = block_size
         self.window_size: int = window_size
-        if algorithm != 'EBBME':
+
+        if algorithm not in ['EBBME', '2DLS']:
             raise ValueError("Algorithm not implemented: %s" % algorithm)
+        else:
+            self.algorithm = algorithm
 
     def calculate_motion_field(self):
         '''
@@ -141,13 +145,16 @@ class BBME:
 
         for bx in range(bw):
             for by in range(bh):
-                MF[by, bx] = self._calculate_block_vector(f_ref, f_target, bx, by)
+                if self.algorithm == 'EBBME':
+                    MF[by, bx] = self._calculate_block_vector_EBBME(f_ref, f_target, bx, by)
+                elif self.algorithm == '2DLS':
+                    MF[by, bx] = self._calculate_block_vector_2DLS(f_ref, f_target, bx, by)
 
         return MF
 
-    def _calculate_block_vector(self, f_ref: FrameType, f_target: FrameType, block_x: int, block_y: int) -> MotionVector:
+    def _calculate_block_vector_EBBME(self, f_ref: FrameType, f_target: FrameType, bx: int, by: int) -> MotionVector:
         '''
-        Calculate the motion vector of a given block between two frames
+        Calculate the motion vector of a given block between two frames using the Extensive Search algorithm
 
         Parameters
         ----------
@@ -155,9 +162,9 @@ class BBME:
             The reference frame
         f_target : np.ndaray
             The target frame
-        block_x : int
+        bx : int
             The X coordinate of the block to analyze
-        block_y : int
+        by : int
             The Y coordinate of the block to analyze
 
         Returns
@@ -167,7 +174,7 @@ class BBME:
         '''
 
         ws = self.window_size
-        DFDs: np.ndarray = self._calculate_blocks_DFD(f_ref, f_target, block_x, block_y)
+        DFDs: np.ndarray = self._calculate_DFD_matrix_EBBME(f_ref, f_target, bx, by)
         bs, hbs = self.block_size, self.block_size//2
         min_x, min_y, min_val = ws//2, ws//2, DFDs[ws//2, ws//2]
 
@@ -179,12 +186,67 @@ class BBME:
                     min_y = y
 
         return MotionVector(
-            block_x*bs+hbs, block_y*bs+hbs,
-            (block_x-ws//2+min_x)*bs+hbs, (block_y-ws//2+min_y)*bs+hbs,
+            bx*bs+hbs, by*bs+hbs,
+            (bx-ws//2+min_x)*bs+hbs, (by-ws//2+min_y)*bs+hbs,
             DFDs[min_y, min_x]
         )
 
-    def _calculate_blocks_DFD(self, f_ref: FrameType, f_target: FrameType, block_x: int, block_y: int) -> np.ndarray:
+    def _calculate_block_vector_2DLS(self, f_ref: FrameType, f_target: FrameType, bx: int, by: int) -> MotionVector:
+        '''
+        Calculate the motion vector of a given block between two frames using the 2D-Log Seach algorithm
+
+        Parameters
+        ----------
+        f_ref : np.ndaray
+            The reference frame
+        f_target : np.ndaray
+            The target frame
+        bx : int
+            The X coordinate of the block to analyze
+        by : int
+            The Y coordinate of the block to analyze
+
+        Returns
+        -------
+        vector : `MotionVector`
+            The estimated motion vector for the given block
+        '''
+
+        S = 2
+        center_x, center_y = bx, by
+        bs, hbs = self.block_size, self.block_size//2
+
+        while True:
+            DFDs: np.ndarray = self._calculate_DFD_matrix_2DLS(f_ref, f_target, bx, by)
+            min_x, min_y, min_val = center_x, center_y, DFDs[center_x, center_y]
+
+            for off in [(0, -1), (-1, 0), (0, 0), (1, 0), (0, 1)]:
+                x = center_x + off[0]
+                y = center_y + off[1]
+
+                if x < 0 or x >= DFDs.shape[1] or y < 0 or y >= DFDs.shape[0]:
+                    continue
+
+                if DFDs[y, x] != -1 and DFDs[y, x] < min_val:
+                    min_val = DFDs[y, x]
+                    min_x = x
+                    min_y = y
+
+            if S > 1:
+                if min_x == center_x and min_y == center_y:
+                    S //= 2
+                else:
+                    center_x, center_y = min_x, min_y
+            else:
+                break
+
+        return MotionVector(
+            bx*bs+hbs, by*bs+hbs,
+            center_x, center_y,
+            DFDs[center_x, center_y]
+        )
+
+    def _calculate_DFD_matrix_EBBME(self, f_ref: FrameType, f_target: FrameType, bx: int, by: int) -> np.ndarray:
         '''
         Calculate the Displaced Frame Difference (DFD) for each block inside the search window of the given block
 
@@ -194,9 +256,9 @@ class BBME:
             The reference frame
         f_target : np.ndaray
             The target frame
-        block_x : int
+        bx : int
             The X coordinate of the reference block
-        block_y : int
+        by : int
             The Y coordinate of the reference block
 
         Returns
@@ -205,7 +267,6 @@ class BBME:
             A matrix of DFD values for all blocks in the search window
         '''
 
-        p = 2
         h, w = f_ref.shape
         ws, bs = self.window_size, self.block_size
         bw, bh = w//bs, h//bs
@@ -214,8 +275,8 @@ class BBME:
         for bx in range(ws):
             for by in range(ws):
 
-                wx = block_x - ws//2 + bx
-                wy = block_y - ws//2 + by
+                wx = bx - ws//2 + bx
+                wy = by - ws//2 + by
                 blocks[by, bx] = -1
 
                 if wx < 0 or wx >= bw:
@@ -223,12 +284,76 @@ class BBME:
                 if wy < 0 or wy >= bh:
                     continue
 
-                blocks[by, bx] = 0
-
-                for px_x in range(wx*bs, wx*bs+bs):
-                    for px_y in range(wy*bs, wy*bs+bs):
-                        blocks[by, bx] += abs(
-                            int(f_target[px_y, px_x]) - int(f_ref[px_y, px_x])
-                        )**p
+                blocks[by, bx] = self._calculate_block_DFD(f_ref, f_target, wx, wy)
 
         return blocks
+
+    def _calculate_DFD_matrix_2DLS(self, f_ref: FrameType, f_target: FrameType, bx: int, by: int) -> np.ndarray:
+        '''
+        Calculate the Displaced Frame Difference (DFD) for the N,E,W,S blocks of the given one
+
+        Parameters
+        ----------
+        f_ref : np.ndaray
+            The reference frame
+        f_target : np.ndaray
+            The target frame
+        bx : int
+            The X coordinate of the reference block
+        by : int
+            The Y coordinate of the reference block
+
+        Returns
+        -------
+        blocks : np.ndaray
+            A matrix of DFD values for the neighbors relevant to to the 2DLS algorithm
+        '''
+
+        h, w = f_ref.shape
+        bs = self.block_size
+        bw, bh = w//bs, h//bs
+        blocks = np.ndarray(shape=(bh, bw), dtype=int)
+
+        for off in [(0, -1), (-1, 0), (0, 0), (1, 0), (0, 1)]:
+            x, y = bx + off[0], by + off[1]
+
+            if x < 0 or x >= bw:
+                continue
+            if y < 0 or y >= bh:
+                continue
+
+            blocks[y, x] = self._calculate_block_DFD(f_ref, f_target, x, y)
+
+        return blocks
+
+    def _calculate_block_DFD(self, f_ref: FrameType, f_target: FrameType, bx: int, by: int) -> int:
+        '''
+        Calculate the Displaced Frame Difference (DFD) of a block between a reference and a target frame
+
+        Parameters
+        ----------
+        f_ref : np.ndaray
+            The reference frame
+        f_target : np.ndaray
+            The target frame
+        bx : int
+            The X coordinate of the block
+        by : int
+            The Y coordinate of the block
+
+        Returns
+        -------
+        DFD : int
+            The Displaced Frame Difference of the indicated block
+        '''
+        p = 2
+        res = 0
+        bs = self.block_size
+
+        for px_x in range(bx*bs, bx*bs+bs):
+            for px_y in range(by*bs, by*bs+bs):
+                res += abs(
+                    int(f_target[px_y, px_x]) - int(f_ref[px_y, px_x])
+                )**p
+
+        return res
