@@ -69,7 +69,7 @@ class MCFilter(Filter):
     Base class for motion-compensated video filters
     &#39;&#39;&#39;
 
-    def __init__(self, block_size: int, motion_threshold: int):
+    def __init__(self, block_size: int):
         &#39;&#39;&#39;
         Parameters
         ----------
@@ -81,7 +81,6 @@ class MCFilter(Filter):
 
         super()
         self.block_size = block_size
-        self.motion_threshold = motion_threshold
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         &#39;&#39;&#39;
@@ -152,8 +151,8 @@ class MCGaussianFilter(MCFilter):
     Motion-Compensated Low-Pass gaussian blur
     &#39;&#39;&#39;
 
-    def __init__(self, block_size: int, motion_threshold: int):
-        super().__init__(block_size, motion_threshold)
+    def __init__(self, block_size: int):
+        super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
@@ -172,7 +171,8 @@ class MCGaussianFilter(MCFilter):
 
         for bx in range(bw):
             for by in range(bh):
-                if mf[by, bx].magnitude &lt;= self.motion_threshold:
+                v = mf[by, bx]
+                if v.origin_x != v.target_x and v.origin_y != v.target_y:
                     x, y = bx*bs, by*bs
                     frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
 
@@ -184,11 +184,16 @@ class MCDarkenFilter(MCFilter):
     Motion-Compensated darkening filter
     &#39;&#39;&#39;
 
-    def __init__(self, block_size: int, motion_threshold: int):
-        super().__init__(block_size, motion_threshold)
+    def __init__(self, block_size: int):
+        super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
-        BBME = motion_estimation.BBME(frames, block_size=self.block_size)
+        BBME = motion_estimation.BBME(
+            frames,
+            block_size=self.block_size,
+            window_size=3,
+            algorithm=&#39;EBBME&#39;
+        )
         MF = BBME.calculate_motion_field()
 
         if len(frames) - 1 != len(MF):
@@ -204,7 +209,8 @@ class MCDarkenFilter(MCFilter):
 
         for bx in range(bw):
             for by in range(bh):
-                if mf[by, bx].magnitude &lt;= self.motion_threshold:
+                v = mf[by, bx]
+                if v.origin_x == v.target_x and v.origin_y == v.target_y:
                     x, y = bx*bs, by*bs
                     frame[y:y+bs, x:x+bs] = frame[y:y+bs, x:x+bs]//3
 
@@ -231,26 +237,26 @@ class MFDrawerFilter(Filter):
         self.block_size = block_size
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
-        BBME = motion_estimation.BBME(frames, block_size=self.block_size)
-        max_mag = 255*BBME.block_size*BBME.block_size
-        # max_mag = 1*BBME.block_size*BBME.block_size
+        BBME = motion_estimation.BBME(
+            frames,
+            block_size=self.block_size,
+            window_size=3,
+            algorithm=&#39;2DLS&#39;
+        )
 
         for frame, mf in zip(frames, BBME.calculate_motion_field()):
             new_f = frame
 
             for row in mf:
                 for vector in row:
-                    len = min(0.7, 5*vector.magnitude/max_mag)
-                    tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
-                    ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
-
+                    print(vector)
                     new_f = cv2.arrowedLine(
                         new_f,
                         (vector.origin_x, vector.origin_y),
-                        (tx, ty),
+                        (vector.target_x, vector.target_y),
                         (0, 0, 200),
                         thickness=1,
-                        tipLength=0.3
+                        tipLength=0.1
                     )
 
                 yield new_f</code></pre>
@@ -430,7 +436,7 @@ class MFDrawerFilter(Filter):
 </dd>
 <dt id="mcvf.filters.MCDarkenFilter"><code class="flex name class">
 <span>class <span class="ident">MCDarkenFilter</span></span>
-<span>(</span><span>block_size: int, motion_threshold: int)</span>
+<span>(</span><span>block_size: int)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Motion-Compensated darkening filter</p>
@@ -450,11 +456,16 @@ class MFDrawerFilter(Filter):
     Motion-Compensated darkening filter
     &#39;&#39;&#39;
 
-    def __init__(self, block_size: int, motion_threshold: int):
-        super().__init__(block_size, motion_threshold)
+    def __init__(self, block_size: int):
+        super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
-        BBME = motion_estimation.BBME(frames, block_size=self.block_size)
+        BBME = motion_estimation.BBME(
+            frames,
+            block_size=self.block_size,
+            window_size=3,
+            algorithm=&#39;EBBME&#39;
+        )
         MF = BBME.calculate_motion_field()
 
         if len(frames) - 1 != len(MF):
@@ -470,7 +481,8 @@ class MFDrawerFilter(Filter):
 
         for bx in range(bw):
             for by in range(bh):
-                if mf[by, bx].magnitude &lt;= self.motion_threshold:
+                v = mf[by, bx]
+                if v.origin_x == v.target_x and v.origin_y == v.target_y:
                     x, y = bx*bs, by*bs
                     frame[y:y+bs, x:x+bs] = frame[y:y+bs, x:x+bs]//3
 
@@ -497,7 +509,12 @@ class MFDrawerFilter(Filter):
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
-    BBME = motion_estimation.BBME(frames, block_size=self.block_size)
+    BBME = motion_estimation.BBME(
+        frames,
+        block_size=self.block_size,
+        window_size=3,
+        algorithm=&#39;EBBME&#39;
+    )
     MF = BBME.calculate_motion_field()
 
     if len(frames) - 1 != len(MF):
@@ -512,7 +529,7 @@ class MFDrawerFilter(Filter):
 </dd>
 <dt id="mcvf.filters.MCFilter"><code class="flex name class">
 <span>class <span class="ident">MCFilter</span></span>
-<span>(</span><span>block_size: int, motion_threshold: int)</span>
+<span>(</span><span>block_size: int)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Base class for motion-compensated video filters</p>
@@ -532,7 +549,7 @@ class MFDrawerFilter(Filter):
     Base class for motion-compensated video filters
     &#39;&#39;&#39;
 
-    def __init__(self, block_size: int, motion_threshold: int):
+    def __init__(self, block_size: int):
         &#39;&#39;&#39;
         Parameters
         ----------
@@ -544,7 +561,6 @@ class MFDrawerFilter(Filter):
 
         super()
         self.block_size = block_size
-        self.motion_threshold = motion_threshold
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         &#39;&#39;&#39;
@@ -607,7 +623,7 @@ class MFDrawerFilter(Filter):
 </dd>
 <dt id="mcvf.filters.MCGaussianFilter"><code class="flex name class">
 <span>class <span class="ident">MCGaussianFilter</span></span>
-<span>(</span><span>block_size: int, motion_threshold: int)</span>
+<span>(</span><span>block_size: int)</span>
 </code></dt>
 <dd>
 <div class="desc"><p>Motion-Compensated Low-Pass gaussian blur</p>
@@ -627,8 +643,8 @@ class MFDrawerFilter(Filter):
     Motion-Compensated Low-Pass gaussian blur
     &#39;&#39;&#39;
 
-    def __init__(self, block_size: int, motion_threshold: int):
-        super().__init__(block_size, motion_threshold)
+    def __init__(self, block_size: int):
+        super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
@@ -647,7 +663,8 @@ class MFDrawerFilter(Filter):
 
         for bx in range(bw):
             for by in range(bh):
-                if mf[by, bx].magnitude &lt;= self.motion_threshold:
+                v = mf[by, bx]
+                if v.origin_x != v.target_x and v.origin_y != v.target_y:
                     x, y = bx*bs, by*bs
                     frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
 
@@ -727,26 +744,26 @@ class MFDrawerFilter(Filter):
         self.block_size = block_size
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
-        BBME = motion_estimation.BBME(frames, block_size=self.block_size)
-        max_mag = 255*BBME.block_size*BBME.block_size
-        # max_mag = 1*BBME.block_size*BBME.block_size
+        BBME = motion_estimation.BBME(
+            frames,
+            block_size=self.block_size,
+            window_size=3,
+            algorithm=&#39;2DLS&#39;
+        )
 
         for frame, mf in zip(frames, BBME.calculate_motion_field()):
             new_f = frame
 
             for row in mf:
                 for vector in row:
-                    len = min(0.7, 5*vector.magnitude/max_mag)
-                    tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
-                    ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
-
+                    print(vector)
                     new_f = cv2.arrowedLine(
                         new_f,
                         (vector.origin_x, vector.origin_y),
-                        (tx, ty),
+                        (vector.target_x, vector.target_y),
                         (0, 0, 200),
                         thickness=1,
-                        tipLength=0.3
+                        tipLength=0.1
                     )
 
                 yield new_f</code></pre>
@@ -771,26 +788,26 @@ class MFDrawerFilter(Filter):
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
-    BBME = motion_estimation.BBME(frames, block_size=self.block_size)
-    max_mag = 255*BBME.block_size*BBME.block_size
-    # max_mag = 1*BBME.block_size*BBME.block_size
+    BBME = motion_estimation.BBME(
+        frames,
+        block_size=self.block_size,
+        window_size=3,
+        algorithm=&#39;2DLS&#39;
+    )
 
     for frame, mf in zip(frames, BBME.calculate_motion_field()):
         new_f = frame
 
         for row in mf:
             for vector in row:
-                len = min(0.7, 5*vector.magnitude/max_mag)
-                tx = int(vector.origin_x + (vector.origin_x - vector.target_x)*len)
-                ty = int(vector.origin_y + (vector.origin_y - vector.target_y)*len)
-
+                print(vector)
                 new_f = cv2.arrowedLine(
                     new_f,
                     (vector.origin_x, vector.origin_y),
-                    (tx, ty),
+                    (vector.target_x, vector.target_y),
                     (0, 0, 200),
                     thickness=1,
-                    tipLength=0.3
+                    tipLength=0.1
                 )
 
             yield new_f</code></pre>
