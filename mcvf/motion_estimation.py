@@ -25,11 +25,9 @@ class MotionVector:
             The X coordinate where the vector ends
     target_y : int
             The Y coordinate where the vector ends
-    magnitude : int
-            The strength of the detected movement
     '''
 
-    def __init__(self, origin_x: int, origin_y: int, target_x: int, target_y: int, magnitude: int):
+    def __init__(self, origin_x: int, origin_y: int, target_x: int, target_y: int):
         '''
         Parameters
         ---------
@@ -41,19 +39,16 @@ class MotionVector:
                 The X coordinate where the vector ends
         target_y : int
                 The Y coordinate where the vector ends
-        magnitude : int
-                The strength of the detected movement
         '''
 
         self.origin_x: int = origin_x
         self.origin_y: int = origin_y
         self.target_x: int = target_x
         self.target_y: int = target_y
-        self.magnitude: int = magnitude
 
     def __str__(self):
         '''Return a string representation of the vector'''
-        return "<%dx%d [%d] %dx%d>" % (self.origin_x, self.origin_y, self.magnitude, self.target_x, self.target_y)
+        return "<%dx%d -> %dx%d>" % (self.origin_x, self.origin_y, self.target_x, self.target_y)
 
     def __repr__(self):
         '''Return a string representation of the vector'''
@@ -63,6 +58,8 @@ class MotionVector:
 # Type aliases
 FrameType = np.ndarray  # npt.NDArray[np.int8]  # npt.NDArray[(Any, Any), np.int8]
 MFType = np.ndarray  # npt.NDArray[MotionVector]  # npt.NDArray[(Any, Any), MotionVector]
+
+motion_threshold = 50
 
 
 class BBME:
@@ -176,19 +173,25 @@ class BBME:
         ws = self.window_size
         DFDs: np.ndarray = self._calculate_DFD_matrix_EBBME(f_ref, f_target, bx, by)
         bs, hbs = self.block_size, self.block_size//2
-        min_x, min_y, min_val = ws//2, ws//2, DFDs[ws//2, ws//2]
+        h, w = f_ref.shape
+        bw, bh = w//bs, h//bs
+        min_x, min_y, min_val = bx, by, DFDs[by, bx]
 
-        for x in range(DFDs.shape[1]):
-            for y in range(DFDs.shape[0]):
-                if DFDs[y, x] != -1 and DFDs[y, x] < min_val:
+        for off_x in range(-ws//2, ws//2 + 1):
+            for off_y in range(-ws//2, ws//2 + 1):
+                x, y = bx + off_x, by + off_y
+
+                if x < 0 or x >= bw or y < 0 or y >= bh:
+                    continue
+
+                if DFDs[y, x] != -1 and DFDs[y, x] < min_val - motion_threshold:
                     min_val = DFDs[y, x]
                     min_x = x
                     min_y = y
 
         return MotionVector(
             bx*bs+hbs, by*bs+hbs,
-            (bx-ws//2+min_x)*bs+hbs, (by-ws//2+min_y)*bs+hbs,
-            DFDs[min_y, min_x]
+            min_x*bs+hbs, min_y*bs+hbs
         )
 
     def _calculate_block_vector_2DLS(self, f_ref: FrameType, f_target: FrameType, bx: int, by: int) -> MotionVector:
@@ -215,19 +218,21 @@ class BBME:
         S = 2
         center_x, center_y = bx, by
         bs, hbs = self.block_size, self.block_size//2
+        h, w = f_ref.shape
+        bw, bh = w//bs, h//bs
 
         while True:
-            DFDs: np.ndarray = self._calculate_DFD_matrix_2DLS(f_ref, f_target, bx, by)
-            min_x, min_y, min_val = center_x, center_y, DFDs[center_x, center_y]
+            DFDs: np.ndarray = self._calculate_DFD_matrix_2DLS(f_ref, f_target, center_x, center_y)
+            min_x, min_y, min_val = center_x, center_y, DFDs[center_y, center_x]
 
             for off in [(0, -1), (-1, 0), (0, 0), (1, 0), (0, 1)]:
                 x = center_x + off[0]
                 y = center_y + off[1]
 
-                if x < 0 or x >= DFDs.shape[1] or y < 0 or y >= DFDs.shape[0]:
+                if x < 0 or x >= bw or y < 0 or y >= bh:
                     continue
 
-                if DFDs[y, x] != -1 and DFDs[y, x] < min_val:
+                if DFDs[y, x] != -1 and DFDs[y, x] < min_val - motion_threshold:
                     min_val = DFDs[y, x]
                     min_x = x
                     min_y = y
@@ -242,8 +247,7 @@ class BBME:
 
         return MotionVector(
             bx*bs+hbs, by*bs+hbs,
-            center_x, center_y,
-            DFDs[center_x, center_y]
+            min_x*bs+hbs, min_y*bs+hbs
         )
 
     def _calculate_DFD_matrix_EBBME(self, f_ref: FrameType, f_target: FrameType, bx: int, by: int) -> np.ndarray:
@@ -270,21 +274,17 @@ class BBME:
         h, w = f_ref.shape
         ws, bs = self.window_size, self.block_size
         bw, bh = w//bs, h//bs
-        blocks = np.ndarray(shape=(ws, ws), dtype=int)
+        blocks = np.ndarray(shape=(bh, bw), dtype=int)
 
-        for bx in range(ws):
-            for by in range(ws):
-
-                wx = bx - ws//2 + bx
-                wy = by - ws//2 + by
-                blocks[by, bx] = -1
+        for wx in range(bx - ws//2, bx + ws//2 + 1):
+            for wy in range(by - ws//2, by + ws//2 + 1):
 
                 if wx < 0 or wx >= bw:
                     continue
                 if wy < 0 or wy >= bh:
                     continue
 
-                blocks[by, bx] = self._calculate_block_DFD(f_ref, f_target, wx, wy)
+                blocks[wy, wx] = self._calculate_block_DFD(f_ref, f_target, wx, wy)
 
         return blocks
 
@@ -346,7 +346,7 @@ class BBME:
         DFD : int
             The Displaced Frame Difference of the indicated block
         '''
-        p = 2
+        p = 1
         res = 0
         bs = self.block_size
 

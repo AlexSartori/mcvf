@@ -89,4 +89,4 @@ class Video:
             A filter instance to parse frames
         '''
 
-        self.frames = list(filter.filter_frames(self.frames))
+        self.frames = list(filter.filter_frames(self.frames[170:190]))
