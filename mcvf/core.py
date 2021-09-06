@@ -56,6 +56,9 @@ class Video:
             How many frames per second to encode in the destination file
         '''
 
+        if len(self.frames) == 0:
+            return
+
         H, W, _ = self.frames[0].shape
 
         out = cv2.VideoWriter(
@@ -89,4 +92,4 @@ class Video:
             A filter instance to parse frames
         '''
 
-        self.frames = list(filter.filter_frames(self.frames[170:190]))
+        self.frames = list(filter.filter_frames(self.frames))

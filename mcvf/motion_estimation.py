@@ -290,7 +290,7 @@ class BBME:
 
     def _calculate_DFD_matrix_2DLS(self, f_ref: FrameType, f_target: FrameType, bx: int, by: int) -> np.ndarray:
         '''
-        Calculate the Displaced Frame Difference (DFD) for the N,E,W,S blocks of the given one
+        Calculate the Displaced Frame Difference (DFD) for the N,E,W,S directions from the given one
 
         Parameters
         ----------
@@ -306,7 +306,7 @@ class BBME:
         Returns
         -------
         blocks : np.ndaray
-            A matrix of DFD values for the neighbors relevant to to the 2DLS algorithm
+            A matrix of DFD values for the neighbors relevant to the 2DLS algorithm
         '''
 
         h, w = f_ref.shape

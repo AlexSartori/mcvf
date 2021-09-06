@@ -84,7 +84,8 @@ class MCFilter(Filter):
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         &#39;&#39;&#39;
-        Parse the given list of frames and return a new list of filtered ones
+        Parse the given list of frames contextually with a Motion Field and
+        return a new list of filtered ones
 
         Parameters
         ----------
@@ -114,6 +115,20 @@ class GaussianFilter(Filter):
         ])/273
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Apply a gaussian blur with  5x5 kernel
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+
         if len(frames) == 0:
             return []
         if frames[0].ndim != 3:
@@ -155,6 +170,20 @@ class MCGaussianFilter(MCFilter):
         super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Apply a 5x5 gaussian blur to the frames where motion is not present
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         MF = BBME.calculate_motion_field()
 
@@ -188,6 +217,20 @@ class MCDarkenFilter(MCFilter):
         super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Darken the frame areas where motion is not present
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+
         BBME = motion_estimation.BBME(
             frames,
             block_size=self.block_size,
@@ -237,6 +280,20 @@ class MFDrawerFilter(Filter):
         self.block_size = block_size
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Overlay a needle diagram to each frame showing its motion field
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+
         BBME = motion_estimation.BBME(
             frames,
             block_size=self.block_size,
@@ -373,6 +430,20 @@ class MFDrawerFilter(Filter):
         ])/273
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Apply a gaussian blur with  5x5 kernel
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+
         if len(frames) == 0:
             return []
         if frames[0].ndim != 3:
@@ -414,16 +485,36 @@ class MFDrawerFilter(Filter):
 <span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
-<p class="inheritance">
-<em>Inherited from:</em>
-<code><a title="mcvf.filters.Filter" href="#mcvf.filters.Filter">Filter</a></code>.<code><a title="mcvf.filters.Filter.filter_frames" href="#mcvf.filters.Filter.filter_frames">filter_frames</a></code>
-</p>
-<div class="desc inherited"><p>Parse the given list of frames and return a new list of filtered ones …</p></div>
+<div class="desc"><p>Apply a gaussian blur with
+5x5 kernel</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>frames</code></strong> :&ensp;<code>list[np.ndaray]</code></dt>
+<dd>A list of frames (as NumPy arrays) to filter</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<pre><code>frames : list[np.ndarray]
+    A list of filtered frames
+</code></pre></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+    &#39;&#39;&#39;
+    Apply a gaussian blur with  5x5 kernel
+
+    Parameters
+    ----------
+    frames : list[np.ndaray]
+        A list of frames (as NumPy arrays) to filter
+
+    Returns
+    -------
+        frames : list[np.ndarray]
+            A list of filtered frames
+    &#39;&#39;&#39;
+
     if len(frames) == 0:
         return []
     if frames[0].ndim != 3:
@@ -460,6 +551,20 @@ class MFDrawerFilter(Filter):
         super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Darken the frame areas where motion is not present
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+
         BBME = motion_estimation.BBME(
             frames,
             block_size=self.block_size,
@@ -499,16 +604,35 @@ class MFDrawerFilter(Filter):
 <span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
-<p class="inheritance">
-<em>Inherited from:</em>
-<code><a title="mcvf.filters.MCFilter" href="#mcvf.filters.MCFilter">MCFilter</a></code>.<code><a title="mcvf.filters.MCFilter.filter_frames" href="#mcvf.filters.MCFilter.filter_frames">filter_frames</a></code>
-</p>
-<div class="desc inherited"><p>Parse the given list of frames and return a new list of filtered ones …</p></div>
+<div class="desc"><p>Darken the frame areas where motion is not present</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>frames</code></strong> :&ensp;<code>list[np.ndaray]</code></dt>
+<dd>A list of frames (as NumPy arrays) to filter</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<pre><code>frames : list[np.ndarray]
+    A list of filtered frames
+</code></pre></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+    &#39;&#39;&#39;
+    Darken the frame areas where motion is not present
+
+    Parameters
+    ----------
+    frames : list[np.ndaray]
+        A list of frames (as NumPy arrays) to filter
+
+    Returns
+    -------
+        frames : list[np.ndarray]
+            A list of filtered frames
+    &#39;&#39;&#39;
+
     BBME = motion_estimation.BBME(
         frames,
         block_size=self.block_size,
@@ -564,7 +688,8 @@ class MFDrawerFilter(Filter):
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
         &#39;&#39;&#39;
-        Parse the given list of frames and return a new list of filtered ones
+        Parse the given list of frames contextually with a Motion Field and
+        return a new list of filtered ones
 
         Parameters
         ----------
@@ -593,18 +718,25 @@ class MFDrawerFilter(Filter):
 <span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
-<p class="inheritance">
-<em>Inherited from:</em>
-<code><a title="mcvf.filters.Filter" href="#mcvf.filters.Filter">Filter</a></code>.<code><a title="mcvf.filters.Filter.filter_frames" href="#mcvf.filters.Filter.filter_frames">filter_frames</a></code>
-</p>
-<div class="desc inherited"><p>Parse the given list of frames and return a new list of filtered ones …</p></div>
+<div class="desc"><p>Parse the given list of frames contextually with a Motion Field and
+return a new list of filtered ones</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>frames</code></strong> :&ensp;<code>list[np.ndaray]</code></dt>
+<dd>A list of frames (as NumPy arrays) to filter</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<pre><code>frames : list[np.ndarray]
+    A list of filtered frames
+</code></pre></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
     &#39;&#39;&#39;
-    Parse the given list of frames and return a new list of filtered ones
+    Parse the given list of frames contextually with a Motion Field and
+    return a new list of filtered ones
 
     Parameters
     ----------
@@ -647,6 +779,20 @@ class MFDrawerFilter(Filter):
         super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Apply a 5x5 gaussian blur to the frames where motion is not present
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         MF = BBME.calculate_motion_field()
 
@@ -681,16 +827,35 @@ class MFDrawerFilter(Filter):
 <span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
-<p class="inheritance">
-<em>Inherited from:</em>
-<code><a title="mcvf.filters.MCFilter" href="#mcvf.filters.MCFilter">MCFilter</a></code>.<code><a title="mcvf.filters.MCFilter.filter_frames" href="#mcvf.filters.MCFilter.filter_frames">filter_frames</a></code>
-</p>
-<div class="desc inherited"><p>Parse the given list of frames and return a new list of filtered ones …</p></div>
+<div class="desc"><p>Apply a 5x5 gaussian blur to the frames where motion is not present</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>frames</code></strong> :&ensp;<code>list[np.ndaray]</code></dt>
+<dd>A list of frames (as NumPy arrays) to filter</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<pre><code>frames : list[np.ndarray]
+    A list of filtered frames
+</code></pre></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+    &#39;&#39;&#39;
+    Apply a 5x5 gaussian blur to the frames where motion is not present
+
+    Parameters
+    ----------
+    frames : list[np.ndaray]
+        A list of frames (as NumPy arrays) to filter
+
+    Returns
+    -------
+        frames : list[np.ndarray]
+            A list of filtered frames
+    &#39;&#39;&#39;
+
     BBME = motion_estimation.BBME(frames, block_size=self.block_size)
     MF = BBME.calculate_motion_field()
 
@@ -744,6 +909,20 @@ class MFDrawerFilter(Filter):
         self.block_size = block_size
 
     def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+        &#39;&#39;&#39;
+        Overlay a needle diagram to each frame showing its motion field
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        &#39;&#39;&#39;
+
         BBME = motion_estimation.BBME(
             frames,
             block_size=self.block_size,
@@ -778,16 +957,35 @@ class MFDrawerFilter(Filter):
 <span>def <span class="ident">filter_frames</span></span>(<span>self, frames: list) ‑> Iterable[numpy.ndarray]</span>
 </code></dt>
 <dd>
-<p class="inheritance">
-<em>Inherited from:</em>
-<code><a title="mcvf.filters.Filter" href="#mcvf.filters.Filter">Filter</a></code>.<code><a title="mcvf.filters.Filter.filter_frames" href="#mcvf.filters.Filter.filter_frames">filter_frames</a></code>
-</p>
-<div class="desc inherited"><p>Parse the given list of frames and return a new list of filtered ones …</p></div>
+<div class="desc"><p>Overlay a needle diagram to each frame showing its motion field</p>
+<h2 id="parameters">Parameters</h2>
+<dl>
+<dt><strong><code>frames</code></strong> :&ensp;<code>list[np.ndaray]</code></dt>
+<dd>A list of frames (as NumPy arrays) to filter</dd>
+</dl>
+<h2 id="returns">Returns</h2>
+<pre><code>frames : list[np.ndarray]
+    A list of filtered frames
+</code></pre></div>
 <details class="source">
 <summary>
 <span>Expand source code</span>
 </summary>
 <pre><code class="python">def filter_frames(self, frames: list[np.ndarray]) -&gt; Iterable[np.ndarray]:
+    &#39;&#39;&#39;
+    Overlay a needle diagram to each frame showing its motion field
+
+    Parameters
+    ----------
+    frames : list[np.ndaray]
+        A list of frames (as NumPy arrays) to filter
+
+    Returns
+    -------
+        frames : list[np.ndarray]
+            A list of filtered frames
+    &#39;&#39;&#39;
+
     BBME = motion_estimation.BBME(
         frames,
         block_size=self.block_size,

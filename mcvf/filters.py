@@ -55,7 +55,8 @@ class MCFilter(Filter):
 
     def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
         '''
-        Parse the given list of frames and return a new list of filtered ones
+        Parse the given list of frames contextually with a Motion Field and
+        return a new list of filtered ones
 
         Parameters
         ----------
@@ -85,6 +86,20 @@ class GaussianFilter(Filter):
         ])/273
 
     def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
+        '''
+        Apply a gaussian blur with  5x5 kernel
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        '''
+
         if len(frames) == 0:
             return []
         if frames[0].ndim != 3:
@@ -126,6 +141,20 @@ class MCGaussianFilter(MCFilter):
         super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
+        '''
+        Apply a 5x5 gaussian blur to the frames where motion is not present
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        '''
+
         BBME = motion_estimation.BBME(frames, block_size=self.block_size)
         MF = BBME.calculate_motion_field()
 
@@ -159,6 +188,20 @@ class MCDarkenFilter(MCFilter):
         super().__init__(block_size)
 
     def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
+        '''
+        Darken the frame areas where motion is not present
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        '''
+
         BBME = motion_estimation.BBME(
             frames,
             block_size=self.block_size,
@@ -208,6 +251,20 @@ class MFDrawerFilter(Filter):
         self.block_size = block_size
 
     def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
+        '''
+        Overlay a needle diagram to each frame showing its motion field
+
+        Parameters
+        ----------
+        frames : list[np.ndaray]
+            A list of frames (as NumPy arrays) to filter
+
+        Returns
+        -------
+            frames : list[np.ndarray]
+                A list of filtered frames
+        '''
+
         BBME = motion_estimation.BBME(
             frames,
             block_size=self.block_size,
