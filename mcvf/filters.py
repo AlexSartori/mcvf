@@ -172,7 +172,7 @@ class MCGaussianFilter(MCFilter):
         for bx in range(bw):
             for by in range(bh):
                 v = mf[by, bx]
-                if v.origin_x != v.target_x and v.origin_y != v.target_y:
+                if v.origin_x == v.target_x and v.origin_y == v.target_y:
                     x, y = bx*bs, by*bs
                     frame[y:y+bs, x:x+bs] = cv2.GaussianBlur(frame[y:y+bs, x:x+bs], (5, 5), 1)
 
@@ -268,23 +268,98 @@ class MFDrawerFilter(Filter):
         BBME = motion_estimation.BBME(
             frames,
             block_size=self.block_size,
-            window_size=3,
+            window_size=15,
             algorithm='2DLS'
         )
 
-        for frame, mf in zip(frames, BBME.calculate_motion_field()):
+        yield frames[0]
+
+        for frame, mf in zip(frames[1:], BBME.calculate_motion_field()):
             new_f = frame
 
             for row in mf:
                 for vector in row:
-                    print(vector)
                     new_f = cv2.arrowedLine(
                         new_f,
                         (vector.origin_x, vector.origin_y),
                         (vector.target_x, vector.target_y),
                         (0, 0, 200),
                         thickness=1,
-                        tipLength=0.1
+                        tipLength=0.2
                     )
 
-                yield new_f
+            yield new_f
+
+
+class MCMovingAvergeFilter(MCFilter):
+    def __init__(self, block_size: int):
+        super().__init__(block_size)
+
+    def filter_frames(self, frames: list[np.ndarray]) -> Iterable[np.ndarray]:
+        BBME = motion_estimation.BBME(
+            frames,
+            block_size=self.block_size,
+            window_size=15,
+            algorithm='2DLS'
+        )
+
+        self.frames: list[np.ndarray] = list(frames)
+        MF = BBME.calculate_motion_field()
+        self.mf_map: list[dict] = list([{}] + [self._map_MF(mf) for mf in MF])
+
+        with Pool() as p:
+            return [self.frames[0]] + p.map(
+                self._filter_frame,
+                [i for i in range(1, len(self.frames))]
+            )
+
+        # for i, f in enumerate(frames):
+        #     print("%.2f%%" % (100*i/len(self.frames)), end='\r')
+        #     if i == 0:
+        #         continue
+        #     yield self._filter_frame(i)
+        # print()
+
+    def _map_MF(self, mf: list[np.ndarray]) -> dict:
+        mf_map = {}
+        bs = self.block_size
+
+        for row in mf:
+            for v in row:
+                A = (v.origin_x//bs, v.origin_y//bs)
+                B = (v.target_x//bs, v.target_y//bs)
+
+                if A[0] != B[0] or A[1] != B[1]:
+                    mf_map[B] = A
+
+        return mf_map
+
+    def _filter_frame(self, f_idx: int) -> np.ndarray:
+        h, w, c = self.frames[0].shape
+        new_f = np.ndarray(shape=(h, w, c), dtype=self.frames[0].dtype)
+
+        for y in range(h):
+            for x in range(w):
+                new_f[y, x] = self._filter_pixel(f_idx, x, y)
+
+        return new_f
+
+    def _filter_pixel(self, f_idx: int, x: int, y: int) -> np.ndarray:
+        alpha = 0.2
+        N = min(4, f_idx)
+        res = self.frames[f_idx][y, x] * (1 - alpha)
+
+        tmp = np.array([0, 0, 0])
+        target = (x, y)
+
+        for n in range(N):
+            if target in self.mf_map[f_idx - n]:
+                target = self.mf_map[f_idx - n][target]
+            tx, ty = target
+
+            for ch in range(3):
+                tmp[ch] += self.frames[f_idx - n - 1][ty, tx][ch] * 1/N
+
+        res += tmp * alpha
+
+        return res

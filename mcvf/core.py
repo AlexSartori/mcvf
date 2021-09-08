@@ -93,3 +93,4 @@ class Video:
         '''
 
         self.frames = list(filter.filter_frames(self.frames))
+        x = len(self.frames)

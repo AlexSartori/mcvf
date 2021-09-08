@@ -59,7 +59,7 @@ class MotionVector:
 FrameType = np.ndarray  # npt.NDArray[np.int8]  # npt.NDArray[(Any, Any), np.int8]
 MFType = np.ndarray  # npt.NDArray[MotionVector]  # npt.NDArray[(Any, Any), MotionVector]
 
-motion_threshold = 50
+motion_threshold = 12000
 
 
 class BBME:
@@ -215,7 +215,7 @@ class BBME:
             The estimated motion vector for the given block
         '''
 
-        S = 2
+        S = 8
         center_x, center_y = bx, by
         bs, hbs = self.block_size, self.block_size//2
         h, w = f_ref.shape
@@ -274,7 +274,7 @@ class BBME:
         h, w = f_ref.shape
         ws, bs = self.window_size, self.block_size
         bw, bh = w//bs, h//bs
-        blocks = np.ndarray(shape=(bh, bw), dtype=int)
+        blocks = np.full(shape=(bh, bw), fill_value=-1, dtype=int)
 
         for wx in range(bx - ws//2, bx + ws//2 + 1):
             for wy in range(by - ws//2, by + ws//2 + 1):
@@ -312,7 +312,7 @@ class BBME:
         h, w = f_ref.shape
         bs = self.block_size
         bw, bh = w//bs, h//bs
-        blocks = np.ndarray(shape=(bh, bw), dtype=int)
+        blocks = np.full(shape=(bh, bw), fill_value=-1, dtype=int)
 
         for off in [(0, -1), (-1, 0), (0, 0), (1, 0), (0, 1)]:
             x, y = bx + off[0], by + off[1]
@@ -349,11 +349,15 @@ class BBME:
         p = 1
         res = 0
         bs = self.block_size
+        h, w = f_ref.shape
 
-        for px_x in range(bx*bs, bx*bs+bs):
-            for px_y in range(by*bs, by*bs+bs):
+        for x in range(bx*bs, bx*bs+bs):
+            for y in range(by*bs, by*bs+bs):
+                if x >= w or y >= h:
+                    continue
+
                 res += abs(
-                    int(f_target[px_y, px_x]) - int(f_ref[px_y, px_x])
+                    int(f_target[y, x]) - int(f_ref[y, x])
                 )**p
 
         return res
